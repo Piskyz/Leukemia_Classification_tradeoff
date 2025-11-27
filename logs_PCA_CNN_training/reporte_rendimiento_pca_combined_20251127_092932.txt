@@ -1,0 +1,34 @@
+================================================================================
+REPORTE COMPLETO DE RENDIMIENTO - CNN LEUKEMIA CLASSIFICATION (PCA DATA)
+================================================================================
+
+Timestamp: 2025-11-27T09:32:25.018421
+Modelo: LeukemiaCNN - PCA Grayscale
+Configuracion: PCA_GRAYSCALE_450x450x1_COMBINED
+
+--------------------------------------------------------------------------------
+ANALISIS COMPUTACIONAL
+--------------------------------------------------------------------------------
+Total parametros: 1,437,026
+Parametros entrenables: 1,437,026
+Tamaño del modelo: 5.48 MB
+Throughput inferencia: 11.17 img/s
+Latencia inferencia: 2864.37 ms
+
+--------------------------------------------------------------------------------
+RENDIMIENTO DE ENTRENAMIENTO
+--------------------------------------------------------------------------------
+Accuracy final entrenamiento: 97.58%
+Accuracy final validacion: 63.33%
+Loss final entrenamiento: 0.0645
+Loss final validacion: 1.1690
+Tiempo promedio por epoca: 668.32 s
+Tiempo total entrenamiento: 16708.08 s
+
+--------------------------------------------------------------------------------
+ANALISIS DE RENDIMIENTO
+--------------------------------------------------------------------------------
+Brecha de accuracy (train-val): 34.25%
+Brecha de loss (val-train): 1.1045
+ALTO OVERFITTING: Brecha de accuracy > 10%
+NECESITA MEJORAS: Accuracy < 80%
