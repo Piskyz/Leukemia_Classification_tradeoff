@@ -3,6 +3,7 @@ Autoencoder for Leukemia Detection (Anomaly Detection Approach)
 Input: 450x450x1 Grayscale images
 Training: Only on Healthy (Hem) cells
 Inference: Detects Leukemia (All) cells as anomalies (high reconstruction error)
+Includes: Full logging and Accuracy metrics per epoch
 """
 
 import torch
@@ -12,17 +13,17 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import time
 import os
+import json
+from datetime import datetime
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc, precision_recall_curve
+from sklearn.metrics import classification_report, roc_curve, auc
 from sklearn.model_selection import train_test_split
 import cv2
 
 # Import data loading functions
-# Assuming Creador_labels loads the dictionary separated by folds and types
 try:
     from Creador_labels import cargar_todos_datasets_con_labels
 except ImportError:
-    # Fallback if Creador_labels is not available
     print("Warning: Creador_labels not found. Ensure data loading functions are available.")
 
 from Carga_imagenes import cargar_training_all_original, cargar_training_hem_original
@@ -31,33 +32,27 @@ from Carga_imagenes import cargar_training_all_original, cargar_training_hem_ori
 class LeukemiaAutoencoder(nn.Module):
     """
     Convolutional Autoencoder for 450x450 Grayscale Images.
-    Uses nn.Upsample to handle odd dimensions (450 -> 225) correctly during reconstruction.
     """
     def __init__(self):
         super(LeukemiaAutoencoder, self).__init__()
         
         # ============ ENCODER ============
-        # Compresses the image into a latent representation
         self.encoder = nn.Sequential(
-            # Block 1: 450x450 -> 225x225
             nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(True),
             nn.MaxPool2d(2, stride=2), 
             
-            # Block 2: 225x225 -> 112x112
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(True),
             nn.MaxPool2d(2, stride=2),
             
-            # Block 3: 112x112 -> 56x56
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(True),
             nn.MaxPool2d(2, stride=2),
             
-            # Block 4: 56x56 -> 28x28 (Latent Space)
             nn.Conv2d(128, 256, kernel_size=3, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(True),
@@ -65,33 +60,25 @@ class LeukemiaAutoencoder(nn.Module):
         )
         
         # ============ DECODER ============
-        # Reconstructs the image from the latent representation
         self.decoder = nn.Sequential(
-            # Block 4 Up: 28x28 -> 56x56
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
             nn.Conv2d(256, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(True),
             
-            # Block 3 Up: 56x56 -> 112x112
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
             nn.Conv2d(128, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(True),
             
-            # Block 2 Up: 112x112 -> 225x225
-            # Note: 112*2 = 224, so we need to force size to 225 if matching original CNN logic
-            # However, standard upsampling gives 224. We will rely on adaptive sizing or padding if strict 450 is needed.
-            # Here we use explicit size in Upsample to ensure we get back to 450x450 eventually.
             nn.Upsample(size=(225, 225), mode='bilinear', align_corners=True),
             nn.Conv2d(64, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(True),
             
-            # Block 1 Up: 225x225 -> 450x450
             nn.Upsample(size=(450, 450), mode='bilinear', align_corners=True),
-            nn.Conv2d(32, 1, kernel_size=3, padding=1), # Output 1 channel (Grayscale)
-            nn.Sigmoid() # Normalize output to [0, 1]
+            nn.Conv2d(32, 1, kernel_size=3, padding=1), 
+            nn.Sigmoid() 
         )
 
     def forward(self, x):
@@ -102,7 +89,6 @@ class LeukemiaAutoencoder(nn.Module):
 # ============ DATA PREPARATION ============
 
 def convert_to_grayscale(images):
-    """Helper to convert list of BGR images to grayscale (N, 450, 450, 1)"""
     processed = []
     for img in images:
         if len(img.shape) == 3:
@@ -113,231 +99,270 @@ def convert_to_grayscale(images):
     return np.array(processed)
 
 def prepare_anomaly_data(datasets, batch_size=16):
-    """
-    Prepares data specifically for Anomaly Detection.
-    
-    1. Train Set: ONLY Healthy (Hem) images.
-    2. Test Set: Mixture of Healthy (Hem) and Leukemia (All).
-    """
     print("Preparando datos para Deteccion de Anomalias...")
     
-    # 1. Extract ALL Healthy images (Training Data)
     hem_images = []
     for key in datasets:
-        if 'hem' in key: # Healthy
+        if 'hem' in key:
             hem_images.extend(datasets[key])
             
-    # 2. Extract ALL Leukemia images (Anomalies for Testing)
     all_images = []
     for key in datasets:
-        if 'all' in key: # Leukemia
+        if 'all' in key:
             all_images.extend(datasets[key])
             
-    # Convert to Grayscale
     hem_gray = convert_to_grayscale(hem_images)
     all_gray = convert_to_grayscale(all_images)
     
-    # Normalize to [0, 1]
     hem_gray = hem_gray.astype('float32') / 255.0
     all_gray = all_gray.astype('float32') / 255.0
     
-    # Split Healthy data: 
-    # 80% for Training (Learning "Normal"), 20% for Testing (Checking False Positives)
+    # 80% Train (Healthy only), 20% Test (Healthy)
     X_train_healthy, X_test_healthy = train_test_split(hem_gray, test_size=0.2, random_state=42)
     
-    # The Test set contains the reserved Healthy images (Label 0) AND All Leukemia images (Label 1)
+    # Test set = Reserved Healthy + All Leukemia
     X_test = np.concatenate([X_test_healthy, all_gray], axis=0)
-    
-    # Labels for Testing (0 = Normal/Healthy, 1 = Anomaly/Leukemia)
     y_test = np.concatenate([np.zeros(len(X_test_healthy)), np.ones(len(all_gray))], axis=0)
     
-    # Create PyTorch Tensors
-    # Permute to (N, Channels, Height, Width)
     X_train_tensor = torch.FloatTensor(X_train_healthy).permute(0, 3, 1, 2)
     X_test_tensor = torch.FloatTensor(X_test).permute(0, 3, 1, 2)
     y_test_tensor = torch.LongTensor(y_test)
     
-    # DataLoaders
-    # For training, we only need X vs X (reconstruction), so target is X
     train_dataset = TensorDataset(X_train_tensor, X_train_tensor)
-    test_dataset = TensorDataset(X_test_tensor, y_test_tensor) # X vs Label (for evaluation)
+    test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     print(f"  - Datos Entrenamiento (Solo Healthy): {len(X_train_tensor)} imagenes")
     print(f"  - Datos Test (Mixto): {len(X_test_tensor)} imagenes")
-    print(f"    - Healthy (Test): {len(X_test_healthy)}")
-    print(f"    - Leukemia (Anomalies): {len(all_gray)}")
     
-    return train_loader, test_loader
+    return train_loader, test_loader, (X_train_tensor, X_test_tensor, y_test_tensor)
 
-# ============ TRAINING ============
+# ============ METRICS & LOGGING (Adapted from CNN.py) ============
 
-def train_autoencoder(model, train_loader, epochs=50, lr=0.001, device='cuda'):
+def contar_parametros_modelo(model):
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    model_size_mb = (total_params * 4) / (1024 ** 2)
+    return {
+        'total_parametros': total_params,
+        'parametros_entrenables': trainable_params,
+        'tamaño_modelo_mb': model_size_mb
+    }
+
+def medir_tiempo_inferencia(model, batch_size=16, num_iterations=50):
+    device = next(model.parameters()).device
+    model.eval()
+    dummy_input = torch.randn(batch_size, 1, 450, 450).to(device)
+    
+    with torch.no_grad():
+        for _ in range(10): _ = model(dummy_input) # Warmup
+    
+    if device.type == 'cuda': torch.cuda.synchronize()
+    
+    start_time = time.time()
+    with torch.no_grad():
+        for _ in range(num_iterations): _ = model(dummy_input)
+    if device.type == 'cuda': torch.cuda.synchronize()
+    
+    total_time = time.time() - start_time
+    return {
+        'tiempo_promedio_ms': (total_time / num_iterations) * 1000,
+        'throughput_imagenes_por_segundo': (num_iterations * batch_size) / total_time
+    }
+
+def generar_reporte_completo(metrics, output_path, timestamp):
+    filename = f"reporte_rendimiento_autoencoder_{timestamp}.txt"
+    filepath = os.path.join(output_path, filename)
+    
+    with open(filepath, 'w') as f:
+        f.write("=" * 80 + "\n")
+        f.write("REPORTE DE RENDIMIENTO - AUTOENCODER ANOMALY DETECTION\n")
+        f.write("=" * 80 + "\n\n")
+        f.write(f"Timestamp: {metrics['timestamp']}\n")
+        
+        f.write("-" * 80 + "\nANALISIS COMPUTACIONAL\n" + "-" * 80 + "\n")
+        f.write(f"Total parametros: {metrics['parametros']['total_parametros']:,}\n")
+        f.write(f"Throughput inferencia: {metrics['tiempo_inferencia']['throughput_imagenes_por_segundo']:.2f} img/s\n\n")
+        
+        f.write("-" * 80 + "\nRENDIMIENTO FINAL\n" + "-" * 80 + "\n")
+        f.write(f"Best Validation Accuracy: {max(metrics['metricas_por_epoch']['val_accuracies']):.2f}%\n")
+        f.write(f"Final Validation Loss (Reconstruction MSE): {metrics['rendimiento_entrenamiento']['final_val_loss']:.6f}\n")
+        f.write(f"Total Training Time: {metrics['rendimiento_entrenamiento']['total_training_time_seconds']:.2f} s\n")
+    
+    print(f"Reporte guardado en: {filepath}")
+
+def generar_graficas_entrenamiento(metrics, output_path, timestamp):
+    plt.figure(figsize=(15, 10))
+    
+    # Loss
+    plt.subplot(2, 2, 1)
+    plt.plot(metrics['metricas_por_epoch']['train_losses'], label='Train Loss (Healthy)', color='blue')
+    plt.plot(metrics['metricas_por_epoch']['val_losses'], label='Val Loss (Mixed)', color='orange')
+    plt.title('Reconstruction Loss (MSE)')
+    plt.xlabel('Epoch')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Accuracy (Anomaly Detection Performance)
+    plt.subplot(2, 2, 2)
+    plt.plot(metrics['metricas_por_epoch']['val_accuracies'], label='Val Accuracy (Detection)', color='green')
+    plt.title('Anomaly Detection Accuracy per Epoch')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Epoch Times
+    plt.subplot(2, 2, 3)
+    plt.plot(metrics['metricas_por_epoch']['epoch_times'], color='purple')
+    plt.title('Time per Epoch (seconds)')
+    plt.xlabel('Epoch')
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_path, f'graficas_autoencoder_{timestamp}.png'), dpi=300)
+    plt.close()
+    print("Graficas guardadas.")
+
+def analizar_rendimiento_computacional(model, metrics, output_path="logs_autoencoder"):
+    if not os.path.exists(output_path): os.makedirs(output_path)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    all_metrics = {
+        'timestamp': datetime.now().isoformat(),
+        'parametros': contar_parametros_modelo(model),
+        'tiempo_inferencia': medir_tiempo_inferencia(model),
+        'rendimiento_entrenamiento': {
+            'final_train_loss': metrics['train_losses'][-1],
+            'final_val_loss': metrics['val_losses'][-1],
+            'total_training_time_seconds': sum(metrics['epoch_times'])
+        },
+        'metricas_por_epoch': metrics
+    }
+    
+    generar_reporte_completo(all_metrics, output_path, timestamp)
+    generar_graficas_entrenamiento(all_metrics, output_path, timestamp)
+    return all_metrics
+
+# ============ TRAINING & EVALUATION LOOP ============
+
+def evaluate_and_get_accuracy(model, test_loader, device):
+    """Calculates reconstruction error and determines best accuracy for this epoch"""
+    model.eval()
+    criterion = nn.MSELoss(reduction='none')
+    
+    errors = []
+    labels = []
+    val_loss_sum = 0
+    
+    with torch.no_grad():
+        for data, label in test_loader:
+            data = data.to(device)
+            reconstruction = model(data)
+            
+            # Loss for tracking
+            batch_loss = nn.MSELoss()(reconstruction, data).item()
+            val_loss_sum += batch_loss
+            
+            # Error per image for classification
+            loss_per_img = criterion(reconstruction, data).mean(dim=(1,2,3))
+            errors.extend(loss_per_img.cpu().numpy())
+            labels.extend(label.numpy())
+            
+    avg_val_loss = val_loss_sum / len(test_loader)
+    
+    # Calculate Accuracy based on optimal threshold
+    fpr, tpr, thresholds = roc_curve(labels, errors)
+    optimal_idx = np.argmax(tpr - fpr)
+    optimal_threshold = thresholds[optimal_idx]
+    
+    preds = (np.array(errors) > optimal_threshold).astype(int)
+    accuracy = (preds == np.array(labels)).mean() * 100
+    
+    return avg_val_loss, accuracy
+
+def train_autoencoder(model, train_loader, test_loader, epochs=30, lr=0.001, device='cuda'):
     model = model.to(device)
-    criterion = nn.MSELoss() # Reconstruction Error
+    criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
-    history = {'loss': []}
+    # Metrics containers
+    metrics = {
+        'train_losses': [], 'val_losses': [],
+        'val_accuracies': [], 'epoch_times': []
+    }
     
     print(f"\nIniciando entrenamiento de Autoencoder en {device}...")
-    print(f"{'Epoch':^6} | {'Loss (MSE)':^12} | {'Tiempo (s)':^10}")
-    print("-" * 35)
+    print(f"{'Epoch':^6} | {'Train Loss':^12} | {'Val Loss':^12} | {'Val Acc %':^10} | {'Time (s)':^10}")
+    print("-" * 65)
     
     for epoch in range(epochs):
-        start_time = time.time() # Cronómetro inicio
+        start_time = time.time()
         
+        # 1. Training Phase
         model.train()
         train_loss = 0.0
-        
-        for data, _ in train_loader: # Target is the input itself
+        for data, _ in train_loader:
             data = data.to(device)
-            
             optimizer.zero_grad()
             reconstruction = model(data)
             loss = criterion(reconstruction, data)
             loss.backward()
             optimizer.step()
-            
             train_loss += loss.item()
             
-        avg_loss = train_loss / len(train_loader)
-        history['loss'].append(avg_loss)
+        avg_train_loss = train_loss / len(train_loader)
         
-        end_time = time.time() # Cronómetro fin
+        # 2. Validation Phase (Calculate Accuracy)
+        avg_val_loss, val_acc = evaluate_and_get_accuracy(model, test_loader, device)
+        
+        end_time = time.time()
         epoch_time = end_time - start_time
         
-        # Imprimir CADA época
-        print(f"{epoch+1:^6} | {avg_loss:^12.6f} | {epoch_time:^10.2f}")
+        # Store metrics
+        metrics['train_losses'].append(avg_train_loss)
+        metrics['val_losses'].append(avg_val_loss)
+        metrics['val_accuracies'].append(val_acc)
+        metrics['epoch_times'].append(epoch_time)
+        
+        print(f"{epoch+1:^6} | {avg_train_loss:^12.6f} | {avg_val_loss:^12.6f} | {val_acc:^10.2f} | {epoch_time:^10.2f}")
             
-    return model, history
-
-# ============ EVALUATION ============
-
-def evaluate_anomaly_detection(model, test_loader, device='cuda'):
-    """
-    Evaluates the model by calculating reconstruction error for every image.
-    High error = Anomaly (Leukemia).
-    """
-    model.eval()
-    criterion = nn.MSELoss(reduction='none') # Loss per pixel
-    
-    reconstruction_errors = []
-    true_labels = []
-    
-    print("\nEvaluando deteccion de anomalias...")
-    
-    with torch.no_grad():
-        for data, label in test_loader:
-            data = data.to(device)
-            
-            # Reconstruct
-            reconstruction = model(data)
-            
-            # Calculate Error: Mean Squared Error per image
-            # loss shape: (Batch, C, H, W) -> mean over dimensions (1,2,3)
-            loss = criterion(reconstruction, data)
-            loss = loss.mean(dim=(1, 2, 3)) 
-            
-            reconstruction_errors.extend(loss.cpu().numpy())
-            true_labels.extend(label.numpy())
-            
-    return np.array(reconstruction_errors), np.array(true_labels)
-
-def find_optimal_threshold(errors, labels):
-    """
-    Finds the threshold that maximizes separation using ROC Curve
-    """
-    fpr, tpr, thresholds = roc_curve(labels, errors)
-    roc_auc = auc(fpr, tpr)
-    
-    # Optimal threshold: Youden's J statistic (TPR - FPR)
-    optimal_idx = np.argmax(tpr - fpr)
-    optimal_threshold = thresholds[optimal_idx]
-    
-    return optimal_threshold, roc_auc
-
-def plot_results(history, errors, labels, threshold):
-    """Plots Training Loss and Anomaly Histograms"""
-    plt.figure(figsize=(12, 5))
-    
-    # 1. Training Loss
-    plt.subplot(1, 2, 1)
-    plt.plot(history['loss'], label='Reconstruction Loss')
-    plt.title('Autoencoder Training (Healthy Only)')
-    plt.xlabel('Epochs')
-    plt.ylabel('MSE Loss')
-    plt.grid(True)
-    
-    # 2. Histogram of Errors
-    plt.subplot(1, 2, 2)
-    healthy_errors = errors[labels == 0]
-    leukemia_errors = errors[labels == 1]
-    
-    plt.hist(healthy_errors, bins=50, alpha=0.6, label='Healthy (Normal)', color='green')
-    plt.hist(leukemia_errors, bins=50, alpha=0.6, label='Leukemia (Anomaly)', color='red')
-    plt.axvline(threshold, color='black', linestyle='dashed', linewidth=2, label=f'Threshold: {threshold:.4f}')
-    
-    plt.title('Reconstruction Error Distribution')
-    plt.xlabel('Mean Squared Error (MSE)')
-    plt.ylabel('Count')
-    plt.legend()
-    
-    plt.tight_layout()
-    plt.savefig('autoencoder_results.png')
-    plt.show()
+    return model, metrics
 
 # ============ MAIN ============
 
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # 1. Load Data
-    # Assuming cargar_todos_datasets_con_labels works as in CNN.py
-    # If not, use the manual loading functions from Carga_imagenes
     print("Cargando datasets...")
+    # Load data (Assuming script is in Scripts/ folder)
     try:
         datasets, _ = cargar_todos_datasets_con_labels()
     except:
         print("Using fallback loading...")
-        # Fallback: Load manually if imports fail
-        # This part simulates the dict structure expected by prepare_anomaly_data
         datasets = {
-            'fold_0_hem': cargar_training_hem_original("data/training_data/fold_0/hem/", max_imagenes=200),
-            'fold_0_all': cargar_training_all_original("data/training_data/fold_0/all/", max_imagenes=200)
+            'fold_0_hem': cargar_training_hem_original("../data/training_data/fold_0/hem/", max_imagenes=200),
+            'fold_0_all': cargar_training_all_original("../data/training_data/fold_0/all/", max_imagenes=200)
         }
 
-    # 2. Prepare Data (Train on Healthy, Test on Mixed)
-    train_loader, test_loader = prepare_anomaly_data(datasets, batch_size=8)
+    # Prepare data
+    train_loader, test_loader, _ = prepare_anomaly_data(datasets, batch_size=16)
     
-    # 3. Create Model
+    # Create Model
     model = LeukemiaAutoencoder()
     
-    # 4. Train
-    model, history = train_autoencoder(model, train_loader, epochs=30, device=device)
+    # Train with metrics
+    model, metrics = train_autoencoder(model, train_loader, test_loader, epochs=30, device=device)
     
-    # 5. Evaluate
-    errors, true_labels = evaluate_anomaly_detection(model, test_loader, device=device)
-    
-    # 6. Determine Threshold & Metrics
-    threshold, roc_auc = find_optimal_threshold(errors, true_labels)
-    predicted_labels = (errors > threshold).astype(int)
-    
-    print("\n" + "="*50)
-    print("RESULTADOS FINAL DETECCION DE ANOMALIAS")
-    print("="*50)
-    print(f"Optimal Threshold (MSE): {threshold:.6f}")
-    print(f"ROC AUC Score: {roc_auc:.4f}")
-    print("\nClassification Report:")
-    print(classification_report(true_labels, predicted_labels, target_names=['Healthy', 'Leukemia']))
-    
-    # 7. Visualize
-    plot_results(history, errors, true_labels, threshold)
+    # Generate Logs and Analysis
+    print(f"\nGenerando logs y reportes como en CNN.py...")
+    analizar_rendimiento_computacional(model, metrics, "logs_autoencoder")
     
     # Save model
-    torch.save(model.state_dict(), 'leukemia_autoencoder.pth')
-    print("Modelo guardado como leukemia_autoencoder.pth")
+    torch.save(model.state_dict(), 'leukemia_autoencoder_final.pth')
+    print("Modelo guardado exitosamente.")
 
 if __name__ == "__main__":
     main()
