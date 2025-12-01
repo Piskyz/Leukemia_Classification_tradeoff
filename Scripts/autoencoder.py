@@ -182,8 +182,12 @@ def train_autoencoder(model, train_loader, epochs=50, lr=0.001, device='cuda'):
     history = {'loss': []}
     
     print(f"\nIniciando entrenamiento de Autoencoder en {device}...")
+    print(f"{'Epoch':^6} | {'Loss (MSE)':^12} | {'Tiempo (s)':^10}")
+    print("-" * 35)
     
     for epoch in range(epochs):
+        start_time = time.time() # Cronómetro inicio
+        
         model.train()
         train_loss = 0.0
         
@@ -201,8 +205,11 @@ def train_autoencoder(model, train_loader, epochs=50, lr=0.001, device='cuda'):
         avg_loss = train_loss / len(train_loader)
         history['loss'].append(avg_loss)
         
-        if (epoch + 1) % 5 == 0:
-            print(f"Epoch {epoch+1}/{epochs} | Reconstruction Loss: {avg_loss:.6f}")
+        end_time = time.time() # Cronómetro fin
+        epoch_time = end_time - start_time
+        
+        # Imprimir CADA época
+        print(f"{epoch+1:^6} | {avg_loss:^12.6f} | {epoch_time:^10.2f}")
             
     return model, history
 
