@@ -3,7 +3,7 @@ Autoencoder for Leukemia Detection (Anomaly Detection Approach)
 Input: 450x450x1 Grayscale images
 Training: Only on Healthy (Hem) cells
 Inference: Detects Leukemia (All) cells as anomalies (high reconstruction error)
-Includes: Full logging and Accuracy metrics per epoch
+Includes: Logging for Loss and Time (No Accuracy during training)
 """
 
 import torch
@@ -139,7 +139,7 @@ def prepare_anomaly_data(datasets, batch_size=16):
     
     return train_loader, test_loader, (X_train_tensor, X_test_tensor, y_test_tensor)
 
-# ============ METRICS & LOGGING (Adapted from CNN.py) ============
+# ============ LOGGING UTILS (Modified: No Accuracy) ============
 
 def contar_parametros_modelo(model):
     total_params = sum(p.numel() for p in model.parameters())
@@ -178,7 +178,7 @@ def generar_reporte_completo(metrics, output_path, timestamp):
     
     with open(filepath, 'w') as f:
         f.write("=" * 80 + "\n")
-        f.write("REPORTE DE RENDIMIENTO - AUTOENCODER ANOMALY DETECTION\n")
+        f.write("REPORTE DE RENDIMIENTO - AUTOENCODER (LOSS & TIME ONLY)\n")
         f.write("=" * 80 + "\n\n")
         f.write(f"Timestamp: {metrics['timestamp']}\n")
         
@@ -187,38 +187,29 @@ def generar_reporte_completo(metrics, output_path, timestamp):
         f.write(f"Throughput inferencia: {metrics['tiempo_inferencia']['throughput_imagenes_por_segundo']:.2f} img/s\n\n")
         
         f.write("-" * 80 + "\nRENDIMIENTO FINAL\n" + "-" * 80 + "\n")
-        f.write(f"Best Validation Accuracy: {max(metrics['metricas_por_epoch']['val_accuracies']):.2f}%\n")
-        f.write(f"Final Validation Loss (Reconstruction MSE): {metrics['rendimiento_entrenamiento']['final_val_loss']:.6f}\n")
+        f.write(f"Final Reconstruction Loss (MSE): {metrics['rendimiento_entrenamiento']['final_train_loss']:.6f}\n")
         f.write(f"Total Training Time: {metrics['rendimiento_entrenamiento']['total_training_time_seconds']:.2f} s\n")
     
     print(f"Reporte guardado en: {filepath}")
 
 def generar_graficas_entrenamiento(metrics, output_path, timestamp):
-    plt.figure(figsize=(15, 10))
+    plt.figure(figsize=(15, 5))
     
-    # Loss
-    plt.subplot(2, 2, 1)
-    plt.plot(metrics['metricas_por_epoch']['train_losses'], label='Train Loss (Healthy)', color='blue')
-    plt.plot(metrics['metricas_por_epoch']['val_losses'], label='Val Loss (Mixed)', color='orange')
-    plt.title('Reconstruction Loss (MSE)')
+    # Plot 1: Reconstruction Loss
+    plt.subplot(1, 2, 1)
+    plt.plot(metrics['metricas_por_epoch']['train_losses'], label='Train Loss (MSE)', color='blue', linewidth=2)
+    plt.title('Reconstruction Loss Evolution')
     plt.xlabel('Epoch')
+    plt.ylabel('MSE Loss')
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    # Accuracy (Anomaly Detection Performance)
-    plt.subplot(2, 2, 2)
-    plt.plot(metrics['metricas_por_epoch']['val_accuracies'], label='Val Accuracy (Detection)', color='green')
-    plt.title('Anomaly Detection Accuracy per Epoch')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Epoch Times
-    plt.subplot(2, 2, 3)
-    plt.plot(metrics['metricas_por_epoch']['epoch_times'], color='purple')
+    # Plot 2: Time per Epoch
+    plt.subplot(1, 2, 2)
+    plt.plot(metrics['metricas_por_epoch']['epoch_times'], color='purple', linewidth=2)
     plt.title('Time per Epoch (seconds)')
     plt.xlabel('Epoch')
+    plt.ylabel('Seconds')
     plt.grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -236,7 +227,6 @@ def analizar_rendimiento_computacional(model, metrics, output_path="logs_autoenc
         'tiempo_inferencia': medir_tiempo_inferencia(model),
         'rendimiento_entrenamiento': {
             'final_train_loss': metrics['train_losses'][-1],
-            'final_val_loss': metrics['val_losses'][-1],
             'total_training_time_seconds': sum(metrics['epoch_times'])
         },
         'metricas_por_epoch': metrics
@@ -246,88 +236,47 @@ def analizar_rendimiento_computacional(model, metrics, output_path="logs_autoenc
     generar_graficas_entrenamiento(all_metrics, output_path, timestamp)
     return all_metrics
 
-# ============ TRAINING & EVALUATION LOOP ============
+# ============ TRAINING LOOP ============
 
-def evaluate_and_get_accuracy(model, test_loader, device):
-    """Calculates reconstruction error and determines best accuracy for this epoch"""
-    model.eval()
-    criterion = nn.MSELoss(reduction='none')
-    
-    errors = []
-    labels = []
-    val_loss_sum = 0
-    
-    with torch.no_grad():
-        for data, label in test_loader:
-            data = data.to(device)
-            reconstruction = model(data)
-            
-            # Loss for tracking
-            batch_loss = nn.MSELoss()(reconstruction, data).item()
-            val_loss_sum += batch_loss
-            
-            # Error per image for classification
-            loss_per_img = criterion(reconstruction, data).mean(dim=(1,2,3))
-            errors.extend(loss_per_img.cpu().numpy())
-            labels.extend(label.numpy())
-            
-    avg_val_loss = val_loss_sum / len(test_loader)
-    
-    # Calculate Accuracy based on optimal threshold
-    fpr, tpr, thresholds = roc_curve(labels, errors)
-    optimal_idx = np.argmax(tpr - fpr)
-    optimal_threshold = thresholds[optimal_idx]
-    
-    preds = (np.array(errors) > optimal_threshold).astype(int)
-    accuracy = (preds == np.array(labels)).mean() * 100
-    
-    return avg_val_loss, accuracy
-
-def train_autoencoder(model, train_loader, test_loader, epochs=30, lr=0.001, device='cuda'):
+def train_autoencoder(model, train_loader, epochs=30, lr=0.001, device='cuda'):
     model = model.to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
-    # Metrics containers
-    metrics = {
-        'train_losses': [], 'val_losses': [],
-        'val_accuracies': [], 'epoch_times': []
-    }
+    # Store metrics for logging
+    metrics = {'train_losses': [], 'epoch_times': []}
     
     print(f"\nIniciando entrenamiento de Autoencoder en {device}...")
-    print(f"{'Epoch':^6} | {'Train Loss':^12} | {'Val Loss':^12} | {'Val Acc %':^10} | {'Time (s)':^10}")
-    print("-" * 65)
+    print(f"{'Epoch':^6} | {'Loss (MSE)':^12} | {'Tiempo (s)':^10}")
+    print("-" * 35)
     
     for epoch in range(epochs):
         start_time = time.time()
         
-        # 1. Training Phase
         model.train()
         train_loss = 0.0
+        
         for data, _ in train_loader:
             data = data.to(device)
+            
             optimizer.zero_grad()
             reconstruction = model(data)
             loss = criterion(reconstruction, data)
             loss.backward()
             optimizer.step()
+            
             train_loss += loss.item()
             
-        avg_train_loss = train_loss / len(train_loader)
-        
-        # 2. Validation Phase (Calculate Accuracy)
-        avg_val_loss, val_acc = evaluate_and_get_accuracy(model, test_loader, device)
+        avg_loss = train_loss / len(train_loader)
         
         end_time = time.time()
         epoch_time = end_time - start_time
         
-        # Store metrics
-        metrics['train_losses'].append(avg_train_loss)
-        metrics['val_losses'].append(avg_val_loss)
-        metrics['val_accuracies'].append(val_acc)
+        # Save metrics
+        metrics['train_losses'].append(avg_loss)
         metrics['epoch_times'].append(epoch_time)
         
-        print(f"{epoch+1:^6} | {avg_train_loss:^12.6f} | {avg_val_loss:^12.6f} | {val_acc:^10.2f} | {epoch_time:^10.2f}")
+        print(f"{epoch+1:^6} | {avg_loss:^12.6f} | {epoch_time:^10.2f}")
             
     return model, metrics
 
@@ -336,33 +285,68 @@ def train_autoencoder(model, train_loader, test_loader, epochs=30, lr=0.001, dev
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
+    # 1. Load Data
     print("Cargando datasets...")
-    # Load data (Assuming script is in Scripts/ folder)
     try:
         datasets, _ = cargar_todos_datasets_con_labels()
     except:
         print("Using fallback loading...")
         datasets = {
-            'fold_0_hem': cargar_training_hem_original("../data/training_data/fold_0/hem/", max_imagenes=200),
-            'fold_0_all': cargar_training_all_original("../data/training_data/fold_0/all/", max_imagenes=200)
+            'fold_0_hem': cargar_training_hem_original("data/training_data/fold_0/hem/", max_imagenes=200),
+            'fold_0_all': cargar_training_all_original("data/training_data/fold_0/all/", max_imagenes=200)
         }
 
-    # Prepare data
+    # 2. Prepare Data
+    # Note: We still need test_loader for the FINAL evaluation, but not for the training loop
     train_loader, test_loader, _ = prepare_anomaly_data(datasets, batch_size=16)
     
-    # Create Model
+    # 3. Create Model
     model = LeukemiaAutoencoder()
     
-    # Train with metrics
-    model, metrics = train_autoencoder(model, train_loader, test_loader, epochs=30, device=device)
+    # 4. Train (NOW WITH LOGS but WITHOUT ACCURACY)
+    model, metrics = train_autoencoder(model, train_loader, epochs=30, device=device)
     
-    # Generate Logs and Analysis
-    print(f"\nGenerando logs y reportes como en CNN.py...")
+    # 5. Generate Logs
+    print(f"\nGenerando logs y reportes de entrenamiento...")
     analizar_rendimiento_computacional(model, metrics, "logs_autoencoder")
+
+    # 6. Final Evaluation (Only done once at the end)
+    # Here we DO check classification performance, but it doesn't affect the logs created above
+    
+    # Helper functions for final evaluation (local scope)
+    def evaluate_final(model, test_loader, device):
+        model.eval()
+        criterion = nn.MSELoss(reduction='none')
+        errors, labels = [], []
+        with torch.no_grad():
+            for data, label in test_loader:
+                data = data.to(device)
+                recon = model(data)
+                loss = criterion(recon, data).mean(dim=(1,2,3))
+                errors.extend(loss.cpu().numpy())
+                labels.extend(label.numpy())
+        return np.array(errors), np.array(labels)
+
+    errors, true_labels = evaluate_final(model, test_loader, device)
+    
+    # Find Threshold
+    fpr, tpr, thresholds = roc_curve(true_labels, errors)
+    optimal_idx = np.argmax(tpr - fpr)
+    threshold = thresholds[optimal_idx]
+    roc_auc = auc(fpr, tpr)
+    predicted_labels = (errors > threshold).astype(int)
+    
+    print("\n" + "="*50)
+    print("RESULTADOS FINAL DETECCION DE ANOMALIAS")
+    print("="*50)
+    print(f"Optimal Threshold (MSE): {threshold:.6f}")
+    print(f"ROC AUC Score: {roc_auc:.4f}")
+    print("\nClassification Report:")
+    print(classification_report(true_labels, predicted_labels, target_names=['Healthy', 'Leukemia']))
     
     # Save model
-    torch.save(model.state_dict(), 'leukemia_autoencoder_final.pth')
-    print("Modelo guardado exitosamente.")
+    torch.save(model.state_dict(), 'leukemia_autoencoder.pth')
+    print("Modelo guardado como leukemia_autoencoder.pth")
 
 if __name__ == "__main__":
     main()
