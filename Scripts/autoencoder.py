@@ -238,7 +238,7 @@ def analizar_rendimiento_computacional(model, metrics, output_path="logs_autoenc
 
 # ============ TRAINING LOOP ============
 
-def train_autoencoder(model, train_loader, epochs=30, lr=0.001, device='cuda'):
+def train_autoencoder(model, train_loader, epochs=25, lr=0.001, device='cuda'):
     model = model.to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -304,7 +304,7 @@ def main():
     model = LeukemiaAutoencoder()
     
     # 4. Train (NOW WITH LOGS but WITHOUT ACCURACY)
-    model, metrics = train_autoencoder(model, train_loader, epochs=30, device=device)
+    model, metrics = train_autoencoder(model, train_loader, epochs=25, device=device)
     
     # 5. Generate Logs
     print(f"\nGenerando logs y reportes de entrenamiento...")
