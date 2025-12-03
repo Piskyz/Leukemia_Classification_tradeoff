@@ -1,0 +1,49 @@
+============================================================
+IMPROVED AUTOENCODER ANOMALY DETECTION REPORT
+============================================================
+
+Generated: 2025-12-03 02:19:00
+Total parameters: 51,488,209
+
+TRAINING:
+  Epochs: 25
+  Final loss: 0.000446
+  Total time: 3747.94s
+
+ERROR STATISTICS:
+  Healthy mean: 0.000559
+  Healthy std:  0.000493
+  Leukemia mean: 0.000802
+  Leukemia std:  0.000759
+  Separation:    0.000243
+
+============================================================
+EVALUATING ANOMALY DETECTION
+============================================================
+
+Reconstruction Error Statistics:
+  Healthy (n=300):
+    Mean: 0.000559
+    Std:  0.000493
+
+  Leukemia (n=300):
+    Mean: 0.000802
+    Std:  0.000759
+
+  Separation: 0.000243
+  Separation ratio: 0.49σ
+
+Anomaly Detection Results:
+  ROC AUC: 0.6964
+  Optimal threshold: 0.000409
+  F1 Score: 0.6975
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     Healthy       0.71      0.54      0.62       300
+    Leukemia       0.63      0.78      0.70       300
+
+    accuracy                           0.66       600
+   macro avg       0.67      0.66      0.66       600
+weighted avg       0.67      0.66      0.66       600

@@ -1,0 +1,133 @@
+============================================================
+OPTIMIZED AUTOENCODER ANOMALY DETECTION REPORT
+============================================================
+
+Generated: 2025-12-03 03:22:54
+Total parameters: 6,462,313
+
+TRAINING:
+  Epochs: 40
+  Final loss: 0.015263
+  Total time: 3128.56s
+
+ERROR STATISTICS:
+  Healthy mean: 0.003094
+  Healthy std:  0.000935
+  Leukemia mean: 0.003588
+  Leukemia std:  0.001242
+  Separation:    0.000494
+  Separation ratio: 0.53 std dev
+
+PERFORMANCE:
+  ROC AUC: 0.6794
+  F1 Score: 0.6395
+  Threshold: 0.003011
+
+PERFORMANCE ASSESSMENT:
+  LIMITED: Barely better than random
+
+
+Data split:
+  Train (healthy only): 1200 images
+  Test (balanced): 600 images
+    - Healthy: 300
+    - Leukemia: 300
+
+2. Creating optimized model...
+Model created with 6,462,313 parameters
+Bottleneck size: 128 features (forces meaningful compression)
+Estimated reduction: ~100x smaller than previous model
+
+3. Training optimized autoencoder...
+Key optimizations:
+  - Much smaller model (~100x parameter reduction)
+  - Stronger bottleneck (128 features)
+  - Higher dropout (0.4 in bottleneck)
+  - L1 regularization for sparsity
+  - More noise during training
+  - 40 epochs instead of 25
+
+Training on cpu...
+Epoch | Train Loss | Time (s)
+------------------------------
+  1   | 12.447875  |   79.64  
+  2   |  8.165813  |   78.12  
+  3   |  4.918226  |   79.66  
+  4   |  2.524689  |   84.89  
+  5   |  0.931663  |   77.55  
+  6   |  0.172948  |   79.64  
+  7   |  0.055580  |   77.92  
+  8   |  0.051364  |   82.19  
+  9   |  0.042885  |   78.15  
+ 10   |  0.039885  |   78.76  
+ 11   |  0.037385  |   84.40  
+ 12   |  0.035344  |   83.99  
+ 13   |  0.033932  |   77.93  
+ 14   |  0.032573  |   78.69  
+ 15   |  0.031451  |   79.99  
+ 16   |  0.030620  |   77.96  
+ 17   |  0.024670  |   83.87  
+ 18   |  0.023531  |   78.17  
+ 19   |  0.023166  |   77.84  
+ 20   |  0.022727  |   86.58  
+ 21   |  0.022378  |   77.05  
+ 22   |  0.022082  |   80.24  
+ 23   |  0.021752  |   85.21  
+ 24   |  0.021500  |   76.91  
+ 25   |  0.021255  |   79.37  
+ 26   |  0.020991  |   77.85  
+ 27   |  0.020797  |   68.05  
+ 28   |  0.020575  |   67.65  
+ 29   |  0.020371  |   67.74  
+ 30   |  0.020161  |   68.01  
+ 31   |  0.020027  |   75.42  
+ 32   |  0.016345  |   78.27  
+ 33   |  0.015785  |   77.73  
+ 34   |  0.015683  |   77.61  
+ 35   |  0.015605  |   77.75  
+ 36   |  0.015542  |   77.54  
+ 37   |  0.015462  |   77.44  
+ 38   |  0.015388  |   77.59  
+ 39   |  0.015319  |   77.55  
+ 40   |  0.015263  |   77.62  
+
+Training completed in 3128.56 seconds
+
+4. Evaluating anomaly detection...
+
+============================================================
+EVALUATING ANOMALY DETECTION
+============================================================
+
+Reconstruction Error Statistics:
+  Healthy (n=300):
+    Mean: 0.003094
+    Std:  0.000935
+
+  Leukemia (n=300):
+    Mean: 0.003588
+    Std:  0.001242
+
+  Separation: 0.000494
+  Separation ratio: 0.53 std dev
+
+Anomaly Detection Results:
+  ROC AUC: 0.6794
+  Optimal threshold: 0.003011
+  F1 Score: 0.6395
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     Healthy       0.64      0.67      0.65       300
+    Leukemia       0.65      0.63      0.64       300
+
+    accuracy                           0.65       600
+   macro avg       0.65      0.65      0.65       600
+weighted avg       0.65      0.65      0.65       600
+
+Key Results:
+  ROC AUC: 0.6794
+  F1 Score: 0.6395
+  Separation: 0.000494
+  Separation ratio: 0.53 std dev

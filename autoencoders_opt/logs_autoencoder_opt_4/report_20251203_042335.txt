@@ -1,0 +1,146 @@
+============================================================
+FIXED AUTOENCODER ANOMALY DETECTION REPORT
+============================================================
+
+Generated: 2025-12-03 04:23:35
+Total parameters: 13,137
+
+TRAINING:
+  Epochs: 40
+  Final loss: 0.027331
+  Total time: 2642.42s
+
+ERROR STATISTICS:
+  Healthy mean: 0.000724
+  Healthy std:  0.000209
+  Leukemia mean: 0.000830
+  Leukemia std:  0.000397
+  Separation:    0.000107
+  Separation ratio: 0.51 std dev
+
+PERFORMANCE:
+  ROC AUC: 0.6434
+  F1 Score: 0.6818
+  Threshold: 0.000644
+
+PERFORMANCE ASSESSMENT:
+  LIMITED: Barely better than random
+
+Preparing data...
+  Healthy: 1500 images
+  Leukemia: 1500 images
+
+Data split:
+  Train (healthy only): 1200 images
+  Test (balanced): 600 images
+    - Healthy: 300
+    - Leukemia: 300
+
+2. Creating fixed model...
+Model created with 13,137 parameters
+Key fix: Convolutional bottleneck (no huge linear layers)
+Expected: ~2-3M parameters (not 6.5M like before)
+
+3. Training fixed autoencoder...
+Key improvements:
+  - Convolutional bottleneck (32->8->8 channels)
+  - No huge linear layers (was 6.4M bottleneck params)
+  - More noise (0.15 in early epochs)
+  - Higher L1 regularization (0.0002)
+
+Training on cpu...
+Epoch | Train Loss | Time (s)
+------------------------------
+  1   |  0.265318  |   72.56  
+  2   |  0.196663  |   69.78  
+  3   |  0.161423  |   66.16  
+  4   |  0.139648  |   65.85  
+  5   |  0.124520  |   65.98  
+  6   |  0.112858  |   66.24  
+  7   |  0.102674  |   65.95  
+  8   |  0.094045  |   65.89  
+  9   |  0.086124  |   65.78  
+ 10   |  0.079011  |   66.08  
+ 11   |  0.072627  |   66.26  
+ 12   |  0.066877  |   66.22  
+ 13   |  0.061888  |   66.12  
+ 14   |  0.057535  |   65.98  
+ 15   |  0.053512  |   65.97  
+ 16   |  0.050158  |   65.83  
+ 17   |  0.047309  |   65.95  
+ 18   |  0.044753  |   65.96  
+ 19   |  0.042744  |   65.99  
+ 20   |  0.040670  |   65.80  
+ 21   |  0.038962  |   65.74  
+ 22   |  0.037492  |   65.88  
+ 23   |  0.036826  |   65.84  
+ 24   |  0.035987  |   65.77  
+ 25   |  0.034884  |   66.05  
+ 26   |  0.034305  |   65.61  
+ 27   |  0.033482  |   65.45  
+ 28   |  0.032774  |   65.80  
+ 29   |  0.032299  |   65.63  
+ 30   |  0.031603  |   65.52  
+ 31   |  0.031152  |   65.40  
+ 32   |  0.030758  |   65.36  
+ 33   |  0.030128  |   65.59  
+ 34   |  0.029450  |   65.48  
+ 35   |  0.029258  |   65.40  
+ 36   |  0.028761  |   65.48  
+ 37   |  0.028138  |   65.55  
+ 38   |  0.027705  |   65.51  
+ 39   |  0.027473  |   65.62  
+ 40   |  0.027331  |   65.41  
+
+Training completed in 2642.42 seconds
+
+4. Evaluating anomaly detection...
+
+============================================================
+EVALUATING ANOMALY DETECTION
+============================================================
+
+Reconstruction Error Statistics:
+  Healthy (n=300):
+    Mean: 0.000724
+    Std:  0.000209
+
+  Leukemia (n=300):
+    Mean: 0.000830
+    Std:  0.000397
+
+  Separation: 0.000107
+  Separation ratio: 0.51 std dev
+
+Anomaly Detection Results:
+  ROC AUC: 0.6434
+  Optimal threshold: 0.000644
+  F1 Score: 0.6818
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     Healthy       0.69      0.45      0.54       300
+    Leukemia       0.59      0.80      0.68       300
+
+    accuracy                           0.62       600
+   macro avg       0.64      0.62      0.61       600
+weighted avg       0.64      0.62      0.61       600
+
+
+5. Saving results...
+
+Plot saved to: logs/autoencoder_results_20251203_042335.png
+Report saved to: logs/report_20251203_042335.txt
+Model saved to: leukemia_autoencoder_fixed.pth
+Predictions saved to: autoencoder_predictions.npz
+
+============================================================
+COMPLETED SUCCESSFULLY!
+============================================================
+
+Key Results:
+  ROC AUC: 0.6434
+  F1 Score: 0.6818
+  Separation: 0.000107
+  Separation ratio: 0.51 std dev

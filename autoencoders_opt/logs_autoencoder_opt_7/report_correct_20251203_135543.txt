@@ -1,0 +1,213 @@
+======================================================================
+CORRECT AUTOENCODER WITH REAL BOTTLENECK - ANOMALY DETECTION REPORT
+======================================================================
+
+Generated: 2025-12-03 13:55:43
+Model: CorrectAutoencoder (bottleneck_dim=256)
+Total parameters: 13,073,953
+
+COMPRESSION ANALYSIS:
+  Input pixels: 450×450×1 = 202,500
+  Encoder output: 128×28×28 = 100,352 features
+  Bottleneck: 100,352 → 256 (compression ratio: 392.0x)
+  Total compression: 202,500 → 256 (791.0x)
+
+TRAINING:
+  Epochs completed: 50
+  Final loss: 0.012579
+  Best loss: 0.012579
+  Total time: 6220.43s
+  Average epoch time: 124.41s
+
+ERROR STATISTICS:
+  Healthy (n=300):
+    Mean: 0.002974
+    Std:  0.000572
+  Leukemia (n=300):
+    Mean: 0.003132
+    Std:  0.000869
+  Separation: 0.000158
+  Separation ratio: 0.28 std dev
+  Error ratio (Leukemia/Healthy): 1.05x
+
+PERFORMANCE METRICS:
+  ROC AUC: 0.5627
+  F1 Score: 0.5148
+  Optimal threshold: 0.002943
+  Accuracy: 0.5633
+
+PERFORMANCE ASSESSMENT:
+  POOR: Fails as anomaly detector
+
+TARGETS vs ACTUAL:
+  Target ROC AUC: >0.75 | Actual: 0.5627
+  Target Error Ratio: 3-5x | Actual: 1.05x
+  Target Separation Ratio: >1.5σ | Actual: 0.28σ
+  Target Training Loss: <0.010 | Actual: 0.012579
+
+CLASSIFICATION REPORT:
+              precision    recall  f1-score   support
+
+     Healthy       0.55      0.66      0.60       300
+    Leukemia       0.58      0.46      0.51       300
+
+    accuracy                           0.56       600
+   macro avg       0.57      0.56      0.56       600
+weighted avg       0.57      0.56      0.56       600
+
+
+Preparing data...
+  Healthy: 1500 images
+  Leukemia: 1500 images
+
+Data split:
+  Train (healthy only): 1200 images
+  Test (balanced): 600 images
+    - Healthy: 300
+    - Leukemia: 300
+
+2. Creating CORRECT autoencoder (Model 7)...
+Model created with 13,073,953 parameters
+
+ARCHITECTURE HIGHLIGHTS:
+  Encoder: 1→16→32→64→128 channels with 4x max pooling
+  Bottleneck: REAL compression 100,352 features → 256 (400x!)
+  Decoder: 256 → 128→64→32→16→1 channels
+  Total compression: 202,500 pixels → 256 features (791x compression)
+
+KEY IMPROVEMENTS:
+  1. EXTRA POOLING: 56×56 → 28×28 for stronger spatial compression
+  2. REAL BOTTLENECK: Linear layers force abstract feature learning
+  3. 400x COMPRESSION: Forces information loss (critical for anomalies)
+  4. L1 REGULARIZATION: Encourages sparse latent representations
+
+3. Training correct autoencoder...
+Training parameters:
+  Epochs: 50 (with early stopping patience=15)
+  Learning rate: 0.0001 (lower for stable bottleneck learning)
+  Noise: 0.08 for first 30 epochs (denoising autoencoder)
+  Target loss: <0.010 (previous best: 0.015)
+
+Training on cpu...
+Epoch | Train Loss | Time (s)
+------------------------------
+  1   | 37.032455  |  117.03   *
+  2   | 26.890058  |  121.24   *
+  3   | 19.221843  |  130.18   *
+  4   | 12.951795  |  127.05   *
+  5   |  7.968871  |  121.51   *
+  6   |  4.213413  |  117.01   *
+  7   |  1.676734  |  117.58   *
+  8   |  0.346432  |  125.12   *
+  9   |  0.057478  |  128.47   *
+ 10   |  0.050535  |  128.23   *
+ 11   |  0.047477  |  127.96   *
+ 12   |  0.044857  |  128.28   *
+ 13   |  0.042718  |  128.51   *
+ 14   |  0.040977  |  128.35   *
+ 15   |  0.039540  |  128.53   *
+ 16   |  0.038311  |  128.28   *
+ 17   |  0.037323  |  128.35   *
+ 18   |  0.036605  |  128.28   *
+ 19   |  0.036007  |  128.28   *
+ 20   |  0.035548  |  128.62   *
+ 21   |  0.035180  |  128.39   *
+ 22   |  0.034846  |  128.53   *
+ 23   |  0.034602  |  128.55   *
+ 24   |  0.034439  |  128.58   *
+ 25   |  0.034310  |  128.53   *
+ 26   |  0.034246  |  134.96   *
+ 27   |  0.023231  |  130.95   *
+ 28   |  0.021810  |  129.02   *
+ 29   |  0.021611  |  131.23   *
+ 30   |  0.021607  |  124.86   *
+ 31   |  0.021516  |  112.60   *
+ 32   |  0.021439  |  113.46   *
+ 33   |  0.021413  |  113.85   *
+ 34   |  0.021380  |  112.85   *
+ 35   |  0.021318  |  114.06   *
+ 36   |  0.021270  |  122.71   *
+ 37   |  0.021197  |  122.85   *
+ 38   |  0.021166  |  122.83   *
+ 39   |  0.021102  |  123.24   *
+ 40   |  0.021111  |  122.98   
+ 41   |  0.021013  |  122.57   *
+ 42   |  0.013648  |  123.04   *
+ 43   |  0.012695  |  122.80   *
+ 44   |  0.012659  |  122.85   *
+ 45   |  0.012653  |  122.73   *
+ 46   |  0.012637  |  123.22   *
+ 47   |  0.012624  |  122.97   *
+ 48   |  0.012623  |  122.74   *
+ 49   |  0.012584  |  122.87   *
+ 50   |  0.012579  |  122.76   *
+
+Training completed in 6220.43 seconds
+Best training loss: 0.012579
+
+4. Evaluating anomaly detection...
+
+============================================================
+EVALUATING ANOMALY DETECTION
+============================================================
+
+Reconstruction Error Statistics:
+  Healthy (n=300):
+    Mean: 0.002974
+    Std:  0.000572
+    Min:  0.002355
+    Max:  0.007500
+
+  Leukemia (n=300):
+    Mean: 0.003132
+    Std:  0.000869
+    Min:  0.002399
+    Max:  0.009162
+
+  Separation: 0.000158
+  Separation ratio: 0.28 std dev
+  Leukemia error is 1.05x higher than healthy
+
+Anomaly Detection Results:
+  ROC AUC: 0.5627
+  Optimal threshold: 0.002943
+  F1 Score: 0.5148
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     Healthy       0.55      0.66      0.60       300
+    Leukemia       0.58      0.46      0.51       300
+
+    accuracy                           0.56       600
+   macro avg       0.57      0.56      0.56       600
+weighted avg       0.57      0.56      0.56       600
+
+
+5. Saving results...
+c:\Users\Piskyz\Documents\Programas\Personal\Leukemia_Classification_tradeoff\Scripts\Opt_Autoencoder.py:440: MatplotlibDeprecationWarning: The 'labels' parameter of boxplot() has been renamed 'tick_labels' since Matplotlib 3.9; support for the old name will be dropped in 3.11.
+  ax.boxplot(data_to_plot, labels=['Healthy', 'Leukemia'])
+
+Plot saved to: logs/autoencoder_correct_20251203_135542.png
+Report saved to: logs/report_correct_20251203_135543.txt
+Model saved to: leukemia_autoencoder_correct.pth
+Predictions saved to: autoencoder_correct_predictions.npz
+
+======================================================================
+COMPLETED SUCCESSFULLY!
+======================================================================
+
+KEY RESULTS:
+  ROC AUC: 0.5627 (Target: >0.75)
+  Error Ratio: 1.05x (Target: 3-5x)
+  Separation Ratio: 0.28σ (Target: >1.5σ)
+  Final Training Loss: 0.012579 (Target: <0.010)
+
+PERFORMANCE EVALUATION:
+  POOR: Worse than previous models
+  The bottleneck compression might be too aggressive.
+
+COMPARISON TO BEST PREVIOUS (Model 3):
+  Previous ROC AUC: 0.6964 | Current: 0.5627
+  Previous Parameters: 51M | Current: 13,073,953 (25.6%)
+  Improvement: NO

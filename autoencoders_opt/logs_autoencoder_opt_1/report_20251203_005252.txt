@@ -1,0 +1,110 @@
+============================================================
+AUTOENCODER ANOMALY DETECTION REPORT
+============================================================
+
+Generated: 2025-12-03 00:52:52
+Total parameters: 775,425
+
+TRAINING:
+  Epochs: 25
+  Final loss: 0.004603
+  Total time: 5627.30s
+
+ERROR STATISTICS:
+  Healthy mean: 0.004658
+  Healthy std:  0.002356
+  Leukemia mean: 0.005615
+  Leukemia std:  0.002842
+  Separation:    0.000957
+
+PERFORMANCE:
+  ROC AUC: 0.6175
+  F1 Score: 0.1579
+  Threshold: 0.009370
+
+INTERPRETATION:
+    Limited anomaly detection
+
+Training on cpu...
+Epoch | Train Loss | Time (s)
+------------------------------
+Checking dimensions...
+Input shape: torch.Size([16, 1, 450, 450]), Output shape: torch.Size([16, 1, 450, 450])
+Dimension check complete.
+
+  1   |  0.013935  |  230.70  
+  2   |  0.004603  |  229.52  
+  3   |  0.004603  |  228.25  
+  4   |  0.004603  |  217.06  
+  5   |  0.004603  |  198.99  
+  6   |  0.004603  |  203.66  
+  7   |  0.004603  |  191.26  
+  8   |  0.004603  |  230.79  
+  9   |  0.004603  |  229.96  
+ 10   |  0.004603  |  229.82  
+ 11   |  0.004603  |  229.57  
+ 12   |  0.004603  |  229.31  
+ 13   |  0.004603  |  229.59  
+ 14   |  0.004603  |  229.80  
+ 15   |  0.004603  |  228.89  
+ 16   |  0.004603  |  228.92  
+ 17   |  0.004603  |  229.11  
+ 18   |  0.004603  |  229.89  
+ 19   |  0.004603  |  229.04  
+ 20   |  0.004603  |  229.05  
+ 21   |  0.004603  |  228.52  
+ 22   |  0.004603  |  229.44  
+ 23   |  0.004603  |  228.58  
+ 24   |  0.004603  |  228.60  
+ 25   |  0.004603  |  228.95  
+
+Training completed in 5627.30 seconds
+
+4. Evaluating anomaly detection...
+
+============================================================
+EVALUATING ANOMALY DETECTION
+============================================================
+
+Reconstruction Error Statistics:
+  Healthy (n=300):
+    Mean: 0.004658
+    Std:  0.002356
+
+  Leukemia (n=300):
+    Mean: 0.005615
+    Std:  0.002842
+
+  Separation: 0.000957
+  Separation ratio: 0.41σ
+
+Anomaly Detection Results:
+  ROC AUC: 0.6175
+  Optimal threshold: 0.009370
+  F1 Score: 0.1579
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     Healthy       0.51      0.95      0.66       300
+    Leukemia       0.64      0.09      0.16       300
+
+    accuracy                           0.52       600
+   macro avg       0.58      0.52      0.41       600
+weighted avg       0.58      0.52      0.41       600
+
+
+5. Saving results...
+
+Plot saved to: logs/autoencoder_results_20251203_005252.png
+Report saved to: logs/report_20251203_005252.txt
+Model saved to: leukemia_autoencoder_simple.pth
+
+============================================================
+COMPLETED SUCCESSFULLY!
+============================================================
+
+Results:
+  ROC AUC: 0.6175
+  F1 Score: 0.1579
+  Separation: 0.000957
