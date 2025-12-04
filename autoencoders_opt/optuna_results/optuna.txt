@@ -1,0 +1,71 @@
+Trial Statistics:
+  Completed trials: 20
+  Failed trials: 0
+  Pruned trials: 0
+
+3. Saving optimal hyperparameters...
+
+Best hyperparameters saved to: optuna_results\best_hyperparameters_20251203_223616.json
+
+======================================================================
+OPTUNA HYPERPARAMETER OPTIMIZATION COMPLETE
+======================================================================
+
+Best trial #14:
+  ROC AUC: 0.7472
+  Total parameters: 194,881
+  Training time: 174.6s
+
+ BEST HYPERPARAMETERS:
+
+ARCHITECTURE:
+  Channels multiplier: 0.5
+  Use BatchNorm: True
+  Use Dropout: True
+  Dropout rate: 0.25
+
+TRAINING:
+  Learning rate: 0.003140
+  Weight decay: 0.000116
+  Optimizer: adamw
+  Epochs: 14
+  Noise level: 0.125
+
+ OPTIMIZATION STATS:
+  Total trials: 20
+  Completed trials: 20
+  Best ROC AUC: 0.7472
+  Completed at: 2025-12-03 22:36:16
+
+ TOP 5 TRIALS:
+  1. Trial 14: ROC AUC = 0.7472, Params = 194,881, Time = 174.6s
+  2. Trial 13: ROC AUC = 0.7167, Params = 194,881, Time = 174.2s
+  3. Trial 17: ROC AUC = 0.6878, Params = 194,881, Time = 174.5s
+  4. Trial 15: ROC AUC = 0.6860, Params = 776,833, Time = 204.1s
+  5. Trial 6: ROC AUC = 0.6850, Params = 194,881, Time = 173.6s
+
+4. Creating optimization plots...
+Optimization plots saved to: optuna_results\optuna_history_20251203_223616.png
+
+5. Creating usage example...
+Usage example saved to: optuna_results\use_optimized_hyperparameters.py
+
+ OPTIMIZATION COMPLETE!
+
+ Files created:
+  Hyperparameters: optuna_results\best_hyperparameters_20251203_223616.json
+  Simple copy: optuna_results/best_hyperparameters.json
+  Optimization plots: optuna_results\optuna_history_20251203_223616.png
+  Usage example: optuna_results\use_optimized_hyperparameters.py
+
+ To use these hyperparameters in another script:
+  1. Copy 'optuna_results/best_hyperparameters.json' to your project
+  2. Use the example in 'optuna_results/use_optimized_hyperparameters.py'
+  3. Or manually copy the hyperparameters shown above
+
+  Note: These hyperparameters were optimized with 3.5 minute timeout per trial.
+   For final training, you may want to increase epochs to 30-50.
+
+ Best hyperparameters found!
+   ROC AUC: 0.7472
+   Parameters: 194,881

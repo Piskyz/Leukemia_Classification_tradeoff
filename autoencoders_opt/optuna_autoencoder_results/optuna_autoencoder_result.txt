@@ -1,0 +1,187 @@
+Resumen de datasets cargados:
+  fold_0_all: 500 imágenes, labels: 500
+  fold_0_hem: 500 imágenes, labels: 500
+  fold_1_all: 500 imágenes, labels: 500
+  fold_1_hem: 500 imágenes, labels: 500
+  fold_2_all: 500 imágenes, labels: 500
+  fold_2_hem: 500 imágenes, labels: 500
+Loaded 3000 total images
+Preparing data for Optuna-optimized training...
+  Training (Healthy only): 900 images
+  Test (Balanced Healthy + Leukemia): 600 images
+    - Healthy in test: 300
+    - Leukemia in test: 300
+
+2. Creating Optuna-optimized autoencoder...
+
+Model Architecture (Optuna-optimized):
+  Base channels: 16 (32 * 0.5 multiplier)
+  BatchNorm: Enabled
+  Dropout: Enabled (rate: 0.25)
+  Total parameters: 194,881
+  Parameter reduction from original: 74.9%
+
+======================================================================
+3. TRAINING PHASE (NO VALIDATION DURING TRAINING)
+======================================================================
+
+Training Optuna-Optimized Autoencoder on cpu...
+Optimizer: AdamW | LR: 0.003140 | Weight decay: 0.000116
+Noise level: 0.125 (for first 25 epochs)
+Epoch  |  Train Loss  |  Time (s)
+-----------------------------------
+  1    |   0.024522   |   80.68   
+  2    |   0.000912   |   81.54   
+  3    |   0.000689   |   84.86   
+  4    |   0.000552   |   85.79   
+  5    |   0.000503   |   81.56   
+  6    |   0.000516   |   81.78   
+  7    |   0.000446   |   88.09   
+  8    |   0.000385   |   90.14   
+  9    |   0.000353   |   90.01   
+  10   |   0.000337   |   90.07   
+  11   |   0.000330   |   89.87   
+  12   |   0.000304   |   89.90   
+  13   |   0.000293   |   89.76   
+  14   |   0.000287   |   89.93   
+  15   |   0.000288   |   89.78   
+  16   |   0.000257   |   89.74   
+  17   |   0.000258   |   89.99   
+  18   |   0.000252   |   89.77   
+  19   |   0.000237   |   89.70   
+  20   |   0.000227   |   89.83   
+  21   |   0.000254   |   89.71   
+  22   |   0.000229   |   89.61   
+  23   |   0.000212   |   89.70   
+  24   |   0.000209   |   89.81   
+  25   |   0.000213   |   89.75   
+  26   |   0.000190   |   86.05   
+  27   |   0.000183   |   86.27   
+  28   |   0.000192   |   86.21   
+  29   |   0.000185   |   86.19   
+  30   |   0.000175   |   86.24   
+  31   |   0.000185   |   86.00   
+  32   |   0.000188   |   86.06   
+  33   |   0.000167   |   86.26   
+  34   |   0.000170   |   86.18   
+  35   |   0.000179   |   86.47   
+  36   |   0.000167   |   86.12   
+  37   |   0.000163   |   86.14   
+  38   |   0.000168   |   86.19   
+  39   |   0.000165   |   86.25   
+  40   |   0.000167   |   86.18   
+  41   |   0.000162   |   86.28   
+  42   |   0.000170   |   86.14   
+  43   |   0.000162   |   86.03   
+  44   |   0.000163   |   86.14   
+  45   |   0.000162   |   86.29   
+  46   |   0.000154   |   86.23   
+  47   |   0.000160   |   86.28   
+  48   |   0.000162   |   86.26   
+  49   |   0.000154   |   86.12   
+  50   |   0.000148   |   86.16   
+
+======================================================================
+4. POST-TRAINING EVALUATION
+======================================================================
+
+======================================================================
+POST-TRAINING ANALYSIS WITH OPTUNA COMPARISON
+======================================================================
+
+Error Statistics:
+Healthy samples (n=300):
+  Mean MSE: 0.000173
+  Std MSE:  0.000174
+  Min:      0.000034
+  Max:      0.001585
+
+Leukemia samples (n=300):
+  Mean MSE: 0.000229
+  Std MSE:  0.000222
+  Min:      0.000051
+  Max:      0.001763
+
+Separation Analysis:
+  Difference: 0.000057
+  Separation ratio: 0.33σ
+  Error ratio: 1.33x
+
+Threshold Analysis:
+ROC AUC (sklearn): 0.6344
+ROC AUC (manual): 0.6344
+Optimal threshold (Youden's J): 0.000117
+95th percentile (healthy): 0.000462
+99th percentile (healthy): 0.000932
+
+Threshold: optimal (0.000117)
+  Accuracy:  0.6150
+  Precision: 0.6024
+  Recall:    0.6767
+  F1-score:  0.6374
+  Confusion Matrix:
+    TN: 166, FP: 134
+    FN: 97, TP: 203
+
+Threshold: p95 (0.000462)
+  Accuracy:  0.5217
+  Precision: 0.6512
+  Recall:    0.0933
+  F1-score:  0.1633
+  Confusion Matrix:
+    TN: 285, FP: 15
+    FN: 272, TP: 28
+
+Threshold: p99 (0.000932)
+  Accuracy:  0.5067
+  Precision: 0.7000
+  Recall:    0.0233
+  F1-score:  0.0452
+  Confusion Matrix:
+    TN: 297, FP: 3
+    FN: 293, TP: 7
+
+======================================================================
+COMPARISON WITH OPTUNA OPTIMIZATION
+======================================================================
+Optuna Trial #14 Results:
+  Validation ROC AUC: 0.7472
+  Parameters: 194,881
+
+Current Training Results:
+  Test ROC AUC: 0.6344
+  Parameters: 194,881
+
+Note: Optuna performed better by 0.1128
+
+======================================================================
+BEST PERFORMANCE: OPTIMAL THRESHOLD
+======================================================================
+
+Classification Report:
+              precision    recall  f1-score   support
+
+     Healthy       0.63      0.55      0.59       300
+    Leukemia       0.60      0.68      0.64       300
+
+    accuracy                           0.61       600
+   macro avg       0.62      0.61      0.61       600
+weighted avg       0.62      0.61      0.61       600
+
+
+Plots saved to: optuna_autoencoder_results\optuna_results_20251204_010749.png
+Data saved to: optuna_autoencoder_results\optuna_results_20251204_010749.npz
+
+======================================================================
+TRAINING COMPLETE
+======================================================================
+Model saved as: leukemia_autoencoder_optuna_optimized.pth
+Best threshold: optimal = 0.000117
+Best F1-score: 0.6374
+Recall (Leukemia detection): 0.6767
+ROC AUC: 0.6344
+
+Final Comparison:
+  Optuna validation AUC: 0.7472
+  Current test AUC: 0.6344
+  Parameter reduction: 74.9%

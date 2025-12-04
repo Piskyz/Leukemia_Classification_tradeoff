@@ -1,0 +1,33 @@
+{
+    "best_roc_auc": 0.6908888888888889,
+    "total_parameters": 194881,
+    "trial_number": 6,
+    "training_time_seconds": 130.37862157821655,
+    "hyperparameters": {
+        "use_dropout": true,
+        "dropout_rate": 0.05,
+        "channels_multiplier": 0.5,
+        "use_batchnorm": true,
+        "learning_rate": 0.0028708753481954683,
+        "weight_decay": 0.00020597335357437193,
+        "optimizer": "adamw",
+        "epochs": 6,
+        "noise_level": 0.1
+    },
+    "architecture": {
+        "channels_multiplier": 0.5,
+        "use_batchnorm": true,
+        "use_dropout": true,
+        "dropout_rate": 0.05
+    },
+    "training": {
+        "learning_rate": 0.0028708753481954683,
+        "weight_decay": 0.00020597335357437193,
+        "optimizer": "adamw",
+        "epochs": 6,
+        "noise_level": 0.1
+    },
+    "timestamp": "2025-12-03 21:02:49",
+    "n_trials": 10,
+    "n_completed_trials": 10
+}

@@ -1,6 +1,7 @@
-"""
-CORRECT AUTOENCODER FOR LEUKEMIA ANOMALY DETECTION
-With REAL bottleneck compression (100x) for proper anomaly detection
+"""OPTUNA-OPTIMIZED AUTOENCODER FOR LEUKEMIA DETECTION
+Training only - no validation during training
+Post-training evaluation with Optuna-optimized hyperparameters
+Best ROC AUC: 0.7472 | Parameters: 194,881
 """
 
 import torch
@@ -12,9 +13,12 @@ import time
 import os
 from datetime import datetime
 import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report, roc_curve, auc, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc, roc_auc_score, f1_score, accuracy_score
 from sklearn.model_selection import train_test_split
 import cv2
+import seaborn as sns
+import warnings
+warnings.filterwarnings('ignore')
 
 # Import data loading functions
 try:
@@ -27,559 +31,519 @@ try:
 except ImportError:
     print("Warning: Carga_imagenes not found.")
 
+# ============ AUTOENCODER ARCHITECTURE WITH OPTUNA OPTIMIZATIONS ============
 
-class CorrectAutoencoder(nn.Module):
-    """Autoencoder with REAL bottleneck compression (100x)."""
-    def __init__(self, bottleneck_dim=256):
-        super(CorrectAutoencoder, self).__init__()
+class OptunaOptimizedAutoencoder(nn.Module):
+    """
+    Autoencoder with Optuna-optimized hyperparameters
+    Based on trial #14: ROC AUC = 0.7472
+    Channels multiplier: 0.5 | BatchNorm: True | Dropout: True (0.25)
+    """
+    def __init__(self):
+        super(OptunaOptimizedAutoencoder, self).__init__()
         
-        # Encoder - More pooling for stronger spatial compression
-        self.encoder = nn.Sequential(
-            # 450x450 -> 225x225
-            nn.Conv2d(1, 16, 3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout2d(0.1),
-            
-            # 225x225 -> 112x112
-            nn.Conv2d(16, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout2d(0.1),
-            
-            # 112x112 -> 56x56
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(True),
-            nn.MaxPool2d(2, 2),
-            
-            # 56x56 -> 28x28 (EXTRA POOLING for more compression)
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(True),
-            nn.MaxPool2d(2, 2),
-        )
+        # OPTUNA OPTIMIZED HYPERPARAMETERS
+        channels_multiplier = 0.5      # Optuna optimized
+        use_batchnorm = True           # Optuna optimized
+        use_dropout = True             # Optuna optimized
+        dropout_rate = 0.25            # Optuna optimized
         
-        # REAL BOTTLENECK - Force 100x compression
-        self.bottleneck_dim = bottleneck_dim
-        self.bottleneck = nn.Sequential(
-            # Reduce channels before flattening
-            nn.Conv2d(128, 32, 1),  # 128 -> 32 channels
-            nn.BatchNorm2d(32),
-            nn.ReLU(True),
-            nn.Flatten(),
-            
-            # REAL COMPRESSION: 25,088 features -> 256 (100x compression!)
-            nn.Linear(32 * 28 * 28, bottleneck_dim),
-            nn.ReLU(True),
-            nn.Dropout(0.3),  # Dropout in feature space
-            
-            # Expand back
-            nn.Linear(bottleneck_dim, 32 * 28 * 28),
-            nn.Unflatten(1, (32, 28, 28)),
-        )
+        # Calculate channels based on optimized multiplier
+        base_channels = int(32 * channels_multiplier)  # 16 channels
         
-        # Decoder - Reconstruct from compressed features
-        self.decoder = nn.Sequential(
-            nn.Conv2d(32, 128, 1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(True),
-            
-            # 28x28 -> 56x56
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(128, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(True),
-            
-            # 56x56 -> 112x112
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(64, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(True),
-            
-            # 112x112 -> 225x225 (custom size)
-            nn.Upsample(size=(225, 225), mode='bilinear', align_corners=True),
-            nn.Conv2d(32, 16, 3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(True),
-            
-            # 225x225 -> 450x450 (custom size)
-            nn.Upsample(size=(450, 450), mode='bilinear', align_corners=True),
-            nn.Conv2d(16, 1, 3, padding=1),
-            nn.Sigmoid()
-        )
-    
+        # ============ ENCODER ============
+        encoder_layers = []
+        
+        # Layer 1: 450x450 -> 225x225
+        encoder_layers.append(nn.Conv2d(1, base_channels, kernel_size=3, padding=1))
+        if use_batchnorm:
+            encoder_layers.append(nn.BatchNorm2d(base_channels))
+        encoder_layers.append(nn.ReLU(True))
+        encoder_layers.append(nn.MaxPool2d(2, stride=2))
+        if use_dropout:
+            encoder_layers.append(nn.Dropout2d(dropout_rate))
+        
+        # Layer 2: 225x225 -> 112x112
+        encoder_layers.append(nn.Conv2d(base_channels, base_channels*2, kernel_size=3, padding=1))
+        if use_batchnorm:
+            encoder_layers.append(nn.BatchNorm2d(base_channels*2))
+        encoder_layers.append(nn.ReLU(True))
+        encoder_layers.append(nn.MaxPool2d(2, stride=2))
+        if use_dropout:
+            encoder_layers.append(nn.Dropout2d(dropout_rate))
+        
+        # Layer 3: 112x112 -> 56x56
+        encoder_layers.append(nn.Conv2d(base_channels*2, base_channels*4, kernel_size=3, padding=1))
+        if use_batchnorm:
+            encoder_layers.append(nn.BatchNorm2d(base_channels*4))
+        encoder_layers.append(nn.ReLU(True))
+        encoder_layers.append(nn.MaxPool2d(2, stride=2))
+        
+        # Layer 4: 56x56 -> 28x28
+        encoder_layers.append(nn.Conv2d(base_channels*4, base_channels*8, kernel_size=3, padding=1))
+        if use_batchnorm:
+            encoder_layers.append(nn.BatchNorm2d(base_channels*8))
+        encoder_layers.append(nn.ReLU(True))
+        encoder_layers.append(nn.MaxPool2d(2, stride=2))
+        
+        self.encoder = nn.Sequential(*encoder_layers)
+        
+        # ============ DECODER ============
+        decoder_layers = []
+        
+        # Layer 1: 28x28 -> 56x56
+        decoder_layers.append(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True))
+        decoder_layers.append(nn.Conv2d(base_channels*8, base_channels*4, kernel_size=3, padding=1))
+        if use_batchnorm:
+            decoder_layers.append(nn.BatchNorm2d(base_channels*4))
+        decoder_layers.append(nn.ReLU(True))
+        
+        # Layer 2: 56x56 -> 112x112
+        decoder_layers.append(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True))
+        decoder_layers.append(nn.Conv2d(base_channels*4, base_channels*2, kernel_size=3, padding=1))
+        if use_batchnorm:
+            decoder_layers.append(nn.BatchNorm2d(base_channels*2))
+        decoder_layers.append(nn.ReLU(True))
+        
+        # Layer 3: 112x112 -> 225x225
+        decoder_layers.append(nn.Upsample(size=(225, 225), mode='bilinear', align_corners=True))
+        decoder_layers.append(nn.Conv2d(base_channels*2, base_channels, kernel_size=3, padding=1))
+        if use_batchnorm:
+            decoder_layers.append(nn.BatchNorm2d(base_channels))
+        decoder_layers.append(nn.ReLU(True))
+        
+        # Layer 4: 225x225 -> 450x450
+        decoder_layers.append(nn.Upsample(size=(450, 450), mode='bilinear', align_corners=True))
+        decoder_layers.append(nn.Conv2d(base_channels, 1, kernel_size=3, padding=1))
+        decoder_layers.append(nn.Sigmoid())
+        
+        self.decoder = nn.Sequential(*decoder_layers)
+
     def forward(self, x):
         x = self.encoder(x)
-        x = self.bottleneck(x)
         x = self.decoder(x)
         return x
-    
-    def encode_to_latent(self, x):
-        """Extract latent representation (for analysis)."""
-        x = self.encoder(x)
-        # Get the compressed latent vector
-        x = self.bottleneck[0:5](x)  # Up to the linear layer
-        return x
 
+# ============ DATA PREPARATION FUNCTIONS ============
 
 def convert_to_grayscale(images):
-    """Convert images to grayscale."""
+    """Convert images to grayscale"""
     processed = []
     for img in images:
-        if len(img.shape) == 3 and img.shape[2] == 3:
+        if len(img.shape) == 3:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        elif len(img.shape) == 3 and img.shape[2] == 1:
-            gray = img[:, :, 0]
         else:
             gray = img
-            
-        if len(gray.shape) == 2:
-            gray = np.expand_dims(gray, axis=-1)
-        processed.append(gray)
+        processed.append(np.expand_dims(gray, axis=-1))
     return np.array(processed)
 
-
-def prepare_data_simple(datasets, batch_size=16):
-    """
-    Simple data preparation:
-    - Train: 80% healthy
-    - Test: 20% healthy + equal amount of leukemia
-    """
-    print("\nPreparing data...")
+def prepare_optuna_data(datasets, batch_size=16):
+    """Prepare data for anomaly detection training with Optuna splits"""
+    print("Preparing data for Optuna-optimized training...")
     
-    # Get images
+    # Extract healthy (hem) and leukemia (all) images
     hem_images = []
-    all_images = []
-    
     for key in datasets:
         if 'hem' in key.lower():
             hem_images.extend(datasets[key])
-        elif 'all' in key.lower():
+            
+    all_images = []
+    for key in datasets:
+        if 'all' in key.lower():
             all_images.extend(datasets[key])
-    
-    print(f"  Healthy: {len(hem_images)} images")
-    print(f"  Leukemia: {len(all_images)} images")
     
     # Convert to grayscale
     hem_gray = convert_to_grayscale(hem_images)
     all_gray = convert_to_grayscale(all_images)
     
-    # Normalize
+    # Normalize to [0, 1]
     hem_gray = hem_gray.astype('float32') / 255.0
     all_gray = all_gray.astype('float32') / 255.0
     
-    # Split healthy: 80% train, 20% test
-    X_healthy_train, X_healthy_test = train_test_split(hem_gray, test_size=0.2, random_state=42)
+    # Split healthy: 60% train, 20% test (like Optuna)
+    X_healthy_temp, X_healthy_test = train_test_split(hem_gray, test_size=0.2, random_state=42)
+    X_healthy_train, X_healthy_val = train_test_split(X_healthy_temp, test_size=0.25, random_state=42)
     
-    # Take same number of leukemia as healthy test
-    n_test = min(len(X_healthy_test), len(all_gray))
-    X_leukemia_test = all_gray[:n_test]
-    X_healthy_test = X_healthy_test[:n_test]  # Make balanced
+    # Split leukemia: 50% test (like Optuna validation split)
+    X_leukemia_val, X_leukemia_test = train_test_split(all_gray, test_size=0.5, random_state=42)
     
-    # Final datasets
+    # Take balanced amounts for test (mimicking Optuna validation)
+    n_test = min(len(X_healthy_test), len(X_leukemia_test))
+    
+    # Training: healthy only
     X_train = X_healthy_train
-    X_test = np.concatenate([X_healthy_test, X_leukemia_test], axis=0)
+    
+    # Test: balanced healthy + leukemia
+    X_test = np.concatenate([X_healthy_test[:n_test], X_leukemia_test[:n_test]], axis=0)
     y_test = np.concatenate([np.zeros(n_test), np.ones(n_test)], axis=0)
     
-    # To tensors
+    # Convert to tensors
     X_train_tensor = torch.FloatTensor(X_train).permute(0, 3, 1, 2)
     X_test_tensor = torch.FloatTensor(X_test).permute(0, 3, 1, 2)
     y_test_tensor = torch.LongTensor(y_test)
     
-    # Datasets
-    train_dataset = TensorDataset(X_train_tensor, X_train_tensor)
+    # Create datasets and loaders
+    train_dataset = TensorDataset(X_train_tensor, X_train_tensor)  # Autoencoder: input = target
     test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
     
-    # Dataloaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
-    print(f"\nData split:")
-    print(f"  Train (healthy only): {len(X_train)} images")
-    print(f"  Test (balanced): {len(X_test)} images")
-    print(f"    - Healthy: {n_test}")
-    print(f"    - Leukemia: {n_test}")
+    print(f"  Training (Healthy only): {len(X_train_tensor)} images")
+    print(f"  Test (Balanced Healthy + Leukemia): {len(X_test_tensor)} images")
+    print(f"    - Healthy in test: {n_test}")
+    print(f"    - Leukemia in test: {n_test}")
     
-    return train_loader, test_loader
+    return train_loader, test_loader, (X_train_tensor, X_test_tensor, y_test_tensor)
 
+# ============ TRAINING FUNCTIONS ============
 
-def train_correct(model, train_loader, epochs=50, lr=0.0001, device='cuda'):
-    """Training for correct bottleneck model."""
+def train_optuna_autoencoder(model, train_loader, epochs=50, device='cpu'):
+    """Train autoencoder with Optuna-optimized parameters - only training loss"""
+    
+    # OPTUNA OPTIMIZED TRAINING HYPERPARAMETERS
+    learning_rate = 0.0031404382679661026    # Optuna optimized
+    weight_decay = 0.00011554231483529049    # Optuna optimized
+    noise_level = 0.125                       # Optuna optimized
+    
     model = model.to(device)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
-    
-    print(f"\nTraining on {device}...")
-    print("Epoch | Train Loss | Time (s)")
-    print("-" * 30)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)  # Optuna optimized
     
     train_losses = []
     epoch_times = []
     
-    best_loss = float('inf')
-    patience = 15
-    patience_counter = 0
+    print(f"\nTraining Optuna-Optimized Autoencoder on {device}...")
+    print(f"Optimizer: AdamW | LR: {learning_rate:.6f} | Weight decay: {weight_decay:.6f}")
+    print(f"Noise level: {noise_level:.3f} (for first {epochs//2} epochs)")
+    print(f"{'Epoch':^6} | {'Train Loss':^12} | {'Time (s)':^10}")
+    print("-" * 35)
     
     for epoch in range(epochs):
-        start_time = time.time()
+        epoch_start = time.time()
+        
         model.train()
         total_loss = 0.0
         
-        for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.to(device), target.to(device)
+        for data, _ in train_loader:
+            data = data.to(device)
             
-            # Moderate noise for denoising
-            if epoch < 30:
-                noise = torch.randn_like(data) * 0.08
+            # Add noise for first half of training (Optuna optimized)
+            if noise_level > 0 and epoch < epochs // 2:
+                noise = torch.randn_like(data) * noise_level
                 noisy_data = torch.clamp(data + noise, 0, 1)
             else:
                 noisy_data = data
             
             optimizer.zero_grad()
-            output = model(noisy_data)
-            loss = criterion(output, target)
-            
-            # L1 regularization for sparsity in bottleneck
-            l1_lambda = 0.0002
-            l1_norm = sum(p.abs().sum() for p in model.bottleneck.parameters())
-            loss = loss + l1_lambda * l1_norm
-            
+            reconstruction = model(noisy_data)
+            loss = criterion(reconstruction, data)
             loss.backward()
             
-            # Gradient clipping
+            # Clip gradients for stability
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             optimizer.step()
+            
             total_loss += loss.item()
         
         avg_loss = total_loss / len(train_loader)
-        epoch_time = time.time() - start_time
+        epoch_time = time.time() - epoch_start
         
         train_losses.append(avg_loss)
         epoch_times.append(epoch_time)
         
-        # Check for improvement
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            patience_counter = 0
-            marker = "*"
-        else:
-            patience_counter += 1
-            marker = ""
-        
-        print(f"{epoch+1:^5} | {avg_loss:^10.6f} | {epoch_time:^9.2f} {marker}")
-        
-        # Learning rate decay
-        if epoch == 25:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr * 0.5
-        elif epoch == 40:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr * 0.2
-        
-        # Early stopping
-        if patience_counter >= patience:
-            print(f"\nEarly stopping at epoch {epoch+1} (no improvement for {patience} epochs)")
-            print(f"Best loss: {best_loss:.6f}")
-            break
+        print(f"{epoch+1:^6} | {avg_loss:^12.6f} | {epoch_time:^10.2f}")
     
-    print(f"\nTraining completed in {sum(epoch_times):.2f} seconds")
-    print(f"Best training loss: {best_loss:.6f}")
-    return model, {'train_losses': train_losses, 'epoch_times': epoch_times, 'best_loss': best_loss}
+    return model, {'train_losses': train_losses, 'epoch_times': epoch_times}
 
+# ============ EVALUATION FUNCTIONS ============
 
-def evaluate_model(model, test_loader, device):
-    """One-time evaluation after training."""
-    print("\n" + "="*60)
-    print("EVALUATING ANOMALY DETECTION")
-    print("="*60)
+def evaluate_optuna_autoencoder(model, test_loader, device='cpu'):
+    """Evaluate autoencoder after training"""
     
     model.eval()
-    errors = []
-    labels = []
-    latent_vectors = []
+    criterion = nn.MSELoss(reduction='none')
+    
+    all_errors = []
+    all_labels = []
     
     with torch.no_grad():
-        for data, label in test_loader:
+        for data, labels in test_loader:
             data = data.to(device)
-            recon = model(data)
             
-            # MSE per image
-            mse = torch.mean((recon - data) ** 2, dim=(1, 2, 3))
+            reconstruction = model(data)
+            loss = criterion(reconstruction, data)
             
-            errors.extend(mse.cpu().numpy())
-            labels.extend(label.numpy())
+            # Calculate mean error per image
+            batch_errors = loss.mean(dim=(1, 2, 3)).cpu().numpy()
             
-            # Extract latent representations for analysis
-            if len(latent_vectors) == 0:  # Only do for first batch
-                latent = model.encode_to_latent(data)
-                latent_vectors.extend(latent.cpu().numpy())
+            all_errors.extend(batch_errors)
+            all_labels.extend(labels.numpy())
     
-    errors = np.array(errors)
-    labels = np.array(labels)
+    return np.array(all_errors), np.array(all_labels)
+
+def analyze_optuna_results(errors, true_labels, model):
+    """Complete analysis of results with Optuna comparison"""
     
-    # Error stats
-    healthy_errors = errors[labels == 0]
-    leukemia_errors = errors[labels == 1]
+    # Separate errors by class
+    healthy_errors = errors[true_labels == 0]
+    leukemia_errors = errors[true_labels == 1]
     
-    print("\nReconstruction Error Statistics:")
-    print(f"  Healthy (n={len(healthy_errors)}):")
-    print(f"    Mean: {np.mean(healthy_errors):.6f}")
-    print(f"    Std:  {np.std(healthy_errors):.6f}")
-    print(f"    Min:  {np.min(healthy_errors):.6f}")
-    print(f"    Max:  {np.max(healthy_errors):.6f}")
+    print(f"\n{'='*70}")
+    print("POST-TRAINING ANALYSIS WITH OPTUNA COMPARISON")
+    print(f"{'='*70}")
     
-    print(f"\n  Leukemia (n={len(leukemia_errors)}):")
-    print(f"    Mean: {np.mean(leukemia_errors):.6f}")
-    print(f"    Std:  {np.std(leukemia_errors):.6f}")
-    print(f"    Min:  {np.min(leukemia_errors):.6f}")
-    print(f"    Max:  {np.max(leukemia_errors):.6f}")
+    print(f"\nError Statistics:")
+    print(f"Healthy samples (n={len(healthy_errors)}):")
+    print(f"  Mean MSE: {np.mean(healthy_errors):.6f}")
+    print(f"  Std MSE:  {np.std(healthy_errors):.6f}")
+    print(f"  Min:      {np.min(healthy_errors):.6f}")
+    print(f"  Max:      {np.max(healthy_errors):.6f}")
     
+    print(f"\nLeukemia samples (n={len(leukemia_errors)}):")
+    print(f"  Mean MSE: {np.mean(leukemia_errors):.6f}")
+    print(f"  Std MSE:  {np.std(leukemia_errors):.6f}")
+    print(f"  Min:      {np.min(leukemia_errors):.6f}")
+    print(f"  Max:      {np.max(leukemia_errors):.6f}")
+    
+    # Calculate separation metrics
     separation = np.mean(leukemia_errors) - np.mean(healthy_errors)
-    if np.std(healthy_errors) > 0:
-        separation_ratio = separation / np.std(healthy_errors)
-        print(f"\n  Separation: {separation:.6f}")
-        print(f"  Separation ratio: {separation_ratio:.2f} std dev")
-        print(f"  Leukemia error is {np.mean(leukemia_errors)/np.mean(healthy_errors):.2f}x higher than healthy")
-    else:
-        print(f"\n  Separation: {separation:.6f}")
-        print(f"  Separation ratio: N/A (zero std dev)")
+    separation_ratio = separation / np.std(healthy_errors) if np.std(healthy_errors) > 0 else 0
+    error_ratio = np.mean(leukemia_errors) / np.mean(healthy_errors)
     
-    # Find threshold using Youden's J statistic
-    fpr, tpr, thresholds = roc_curve(labels, errors)
-    youden_j = tpr - fpr
-    best_idx = np.argmax(youden_j)
-    best_threshold = thresholds[best_idx]
+    print(f"\nSeparation Analysis:")
+    print(f"  Difference: {separation:.6f}")
+    print(f"  Separation ratio: {separation_ratio:.2f}σ")
+    print(f"  Error ratio: {error_ratio:.2f}x")
     
-    # ROC AUC
+    # Find optimal threshold using ROC
+    fpr, tpr, thresholds = roc_curve(true_labels, errors)
+    optimal_idx = np.argmax(tpr - fpr)
+    optimal_threshold = thresholds[optimal_idx]
     roc_auc = auc(fpr, tpr)
     
-    # Final predictions
-    preds = (errors > best_threshold).astype(int)
-    f1 = f1_score(labels, preds)
+    # Calculate ROC AUC using sklearn
+    roc_auc_score_val = roc_auc_score(true_labels, errors)
     
-    print(f"\nAnomaly Detection Results:")
-    print(f"  ROC AUC: {roc_auc:.4f}")
-    print(f"  Optimal threshold: {best_threshold:.6f}")
-    print(f"  F1 Score: {f1:.4f}")
+    # Percentile-based thresholds
+    percentile_95 = np.percentile(healthy_errors, 95)
+    percentile_99 = np.percentile(healthy_errors, 99)
     
-    print(f"\nClassification Report:")
-    print(classification_report(labels, preds, target_names=['Healthy', 'Leukemia']))
+    print(f"\nThreshold Analysis:")
+    print(f"ROC AUC (sklearn): {roc_auc_score_val:.4f}")
+    print(f"ROC AUC (manual): {roc_auc:.4f}")
+    print(f"Optimal threshold (Youden's J): {optimal_threshold:.6f}")
+    print(f"95th percentile (healthy): {percentile_95:.6f}")
+    print(f"99th percentile (healthy): {percentile_99:.6f}")
     
-    return {
-        'errors': errors,
-        'labels': labels,
-        'predictions': preds,
-        'threshold': best_threshold,
-        'roc_auc': roc_auc,
-        'f1_score': f1,
-        'error_stats': {
-            'healthy_mean': float(np.mean(healthy_errors)),
-            'healthy_std': float(np.std(healthy_errors)),
-            'leukemia_mean': float(np.mean(leukemia_errors)),
-            'leukemia_std': float(np.std(leukemia_errors)),
-            'separation': float(separation),
-            'separation_ratio': float(separation / np.std(healthy_errors)) if np.std(healthy_errors) > 0 else 0.0,
-            'error_ratio': float(np.mean(leukemia_errors) / np.mean(healthy_errors)) if np.mean(healthy_errors) > 0 else 0.0
-        },
-        'roc_curve': (fpr, tpr),
-        'latent_vectors': np.array(latent_vectors) if len(latent_vectors) > 0 else None
+    # Test different thresholds
+    thresholds_to_test = {
+        'optimal': optimal_threshold,
+        'p95': percentile_95,
+        'p99': percentile_99
     }
-
-
-def plot_results(training_metrics, eval_results):
-    """Comprehensive plotting of results."""
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     
-    # Training loss
-    ax = axes[0, 0]
-    ax.plot(training_metrics['train_losses'], 'b-', linewidth=2)
-    ax.set_title('Training Loss (Should reach <0.010)')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('MSE Loss')
-    ax.axhline(y=0.010, color='r', linestyle='--', alpha=0.5, label='Target: 0.010')
-    ax.axhline(y=0.005, color='g', linestyle='--', alpha=0.5, label='Good: 0.005')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    best_results = None
+    best_f1 = 0
     
-    # Error distribution
-    ax = axes[0, 1]
-    healthy_errors = eval_results['errors'][eval_results['labels'] == 0]
-    leukemia_errors = eval_results['errors'][eval_results['labels'] == 1]
-    
-    ax.hist(healthy_errors, bins=30, alpha=0.7, label='Healthy', color='green', density=True)
-    ax.hist(leukemia_errors, bins=30, alpha=0.7, label='Leukemia', color='red', density=True)
-    ax.axvline(eval_results['threshold'], color='black', linestyle='--', 
-               label=f'Threshold: {eval_results["threshold"]:.6f}')
-    ax.set_title('Error Distribution (Need clear separation)')
-    ax.set_xlabel('Reconstruction Error')
-    ax.set_ylabel('Density')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    
-    # ROC curve
-    ax = axes[0, 2]
-    fpr, tpr = eval_results['roc_curve']
-    roc_auc = eval_results['roc_auc']
-    ax.plot(fpr, tpr, 'darkorange', lw=2, label=f'ROC (AUC = {roc_auc:.3f})')
-    ax.plot([0, 1], [0, 1], 'navy', lw=2, linestyle='--', label='Random')
-    ax.set_xlim([0, 1])
-    ax.set_ylim([0, 1.05])
-    ax.set_xlabel('False Positive Rate')
-    ax.set_ylabel('True Positive Rate')
-    ax.set_title('ROC Curve (Target AUC >0.75)')
-    ax.legend(loc='lower right')
-    ax.grid(True, alpha=0.3)
-    
-    # Error boxplot
-    ax = axes[1, 0]
-    data_to_plot = [healthy_errors, leukemia_errors]
-    ax.boxplot(data_to_plot, labels=['Healthy', 'Leukemia'])
-    ax.set_title('Error by Class (Need 3-5x difference)')
-    ax.set_ylabel('Reconstruction Error')
-    ax.grid(True, alpha=0.3)
-    
-    # Epoch times
-    ax = axes[1, 1]
-    ax.plot(training_metrics['epoch_times'], 'g-', linewidth=2)
-    ax.set_title('Time per Epoch')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('Seconds')
-    ax.grid(True, alpha=0.3)
-    
-    # Latent space visualization (if available)
-    ax = axes[1, 2]
-    if eval_results['latent_vectors'] is not None and len(eval_results['latent_vectors']) > 0:
-        latent = eval_results['latent_vectors']
-        # Use first 2 principal components
-        from sklearn.decomposition import PCA
-        if latent.shape[1] > 2:
-            pca = PCA(n_components=2)
-            latent_2d = pca.fit_transform(latent[:100])  # First 100 samples
-        else:
-            latent_2d = latent[:100]
+    for thresh_name, threshold in thresholds_to_test.items():
+        predictions = (errors > threshold).astype(int)
         
-        ax.scatter(latent_2d[:, 0], latent_2d[:, 1], alpha=0.6, s=20)
-        ax.set_title('Latent Space (First 100 samples)')
-        ax.set_xlabel('PC1')
-        ax.set_ylabel('PC2')
-        ax.grid(True, alpha=0.3)
-    else:
-        ax.text(0.5, 0.5, 'Latent space data not available', 
-                ha='center', va='center', transform=ax.transAxes)
-        ax.set_title('Latent Space Visualization')
+        # Calculate metrics
+        tn, fp, fn, tp = confusion_matrix(true_labels, predictions).ravel()
+        
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        accuracy = (tp + tn) / len(true_labels)
+        
+        print(f"\nThreshold: {thresh_name} ({threshold:.6f})")
+        print(f"  Accuracy:  {accuracy:.4f}")
+        print(f"  Precision: {precision:.4f}")
+        print(f"  Recall:    {recall:.4f}")
+        print(f"  F1-score:  {f1:.4f}")
+        print(f"  Confusion Matrix:")
+        print(f"    TN: {tn}, FP: {fp}")
+        print(f"    FN: {fn}, TP: {tp}")
+        
+        if f1 > best_f1:
+            best_f1 = f1
+            best_results = {
+                'threshold_name': thresh_name,
+                'threshold': threshold,
+                'accuracy': accuracy,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
+                'roc_auc': roc_auc_score_val,
+                'confusion_matrix': [[tn, fp], [fn, tp]],
+                'errors': errors,
+                'true_labels': true_labels,
+                'healthy_mean': float(np.mean(healthy_errors)),
+                'leukemia_mean': float(np.mean(leukemia_errors)),
+                'separation': float(separation),
+                'separation_ratio': float(separation_ratio),
+                'error_ratio': float(error_ratio)
+            }
     
+    # Get model parameter count
+    total_params = sum(p.numel() for p in model.parameters())
+    
+    # Comparison with Optuna results
+    print(f"\n{'='*70}")
+    print("COMPARISON WITH OPTUNA OPTIMIZATION")
+    print(f"{'='*70}")
+    print(f"Optuna Trial #14 Results:")
+    print(f"  Validation ROC AUC: 0.7472")
+    print(f"  Parameters: 194,881")
+    print(f"\nCurrent Training Results:")
+    print(f"  Test ROC AUC: {roc_auc_score_val:.4f}")
+    print(f"  Parameters: {total_params:,}")
+    
+    if roc_auc_score_val > 0.7472:
+        improvement = roc_auc_score_val - 0.7472
+        print(f"\nSUCCESS: Current model outperforms Optuna by {improvement:.4f} ({improvement/0.7472*100:.1f}%)")
+    elif roc_auc_score_val < 0.7472:
+        difference = 0.7472 - roc_auc_score_val
+        print(f"\nNote: Optuna performed better by {difference:.4f}")
+    else:
+        print(f"\nNote: Performance matches Optuna results")
+    
+    # Detailed classification report for best threshold
+    print(f"\n{'='*70}")
+    print(f"BEST PERFORMANCE: {best_results['threshold_name'].upper()} THRESHOLD")
+    print(f"{'='*70}")
+    
+    best_predictions = (errors > best_results['threshold']).astype(int)
+    print("\nClassification Report:")
+    print(classification_report(true_labels, best_predictions, 
+                                target_names=['Healthy', 'Leukemia']))
+    
+    return best_results, errors, true_labels
+
+def plot_optuna_results(train_metrics, errors, true_labels, best_results, save_dir="optuna_autoencoder_results"):
+    """Create visualization plots for Optuna-optimized model"""
+    
+    os.makedirs(save_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    
+    # Plot 1: Training loss
+    axes[0, 0].plot(train_metrics['train_losses'], 'b-', linewidth=2)
+    axes[0, 0].set_title('Training Loss (MSE)')
+    axes[0, 0].set_xlabel('Epoch')
+    axes[0, 0].set_ylabel('Loss')
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    # Plot 2: Error distributions
+    healthy_errors = errors[true_labels == 0]
+    leukemia_errors = errors[true_labels == 1]
+    
+    axes[0, 1].hist(healthy_errors, bins=50, alpha=0.7, label='Healthy', density=True, color='green')
+    axes[0, 1].hist(leukemia_errors, bins=50, alpha=0.7, label='Leukemia', density=True, color='red')
+    axes[0, 1].axvline(best_results['threshold'], color='black', linestyle='--', 
+                       label=f"Threshold: {best_results['threshold']:.6f}")
+    axes[0, 1].set_title('Error Distributions by Class')
+    axes[0, 1].set_xlabel('Reconstruction Error (MSE)')
+    axes[0, 1].set_ylabel('Density')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    # Plot 3: ROC Curve
+    fpr, tpr, _ = roc_curve(true_labels, errors)
+    roc_auc = auc(fpr, tpr)
+    
+    axes[0, 2].plot(fpr, tpr, label=f'ROC (AUC = {roc_auc:.3f})', linewidth=2)
+    axes[0, 2].plot([0, 1], [0, 1], 'k--', label='Random', alpha=0.5)
+    axes[0, 2].set_title('ROC Curve')
+    axes[0, 2].set_xlabel('False Positive Rate')
+    axes[0, 2].set_ylabel('True Positive Rate')
+    axes[0, 2].legend()
+    axes[0, 2].grid(True, alpha=0.3)
+    
+    # Plot 4: Confusion Matrix
+    cm = best_results['confusion_matrix']
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=['Pred Healthy', 'Pred Leukemia'],
+                yticklabels=['True Healthy', 'True Leukemia'],
+                ax=axes[1, 0])
+    axes[1, 0].set_title(f'Confusion Matrix\n({best_results["threshold_name"]} threshold)')
+    
+    # Plot 5: Metrics comparison
+    metrics_names = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+    metrics_values = [
+        best_results['accuracy'],
+        best_results['precision'],
+        best_results['recall'],
+        best_results['f1']
+    ]
+    
+    colors = ['blue', 'green', 'orange', 'red']
+    bars = axes[1, 1].bar(metrics_names, metrics_values, color=colors)
+    axes[1, 1].set_title('Performance Metrics')
+    axes[1, 1].set_ylabel('Score')
+    axes[1, 1].set_ylim([0, 1])
+    axes[1, 1].grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar, value in zip(bars, metrics_values):
+        height = bar.get_height()
+        axes[1, 1].text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                       f'{value:.3f}', ha='center', va='bottom', fontsize=9)
+    
+    # Plot 6: Training time per epoch
+    axes[1, 2].plot(train_metrics['epoch_times'], 'g-', linewidth=2)
+    axes[1, 2].set_title('Training Time per Epoch')
+    axes[1, 2].set_xlabel('Epoch')
+    axes[1, 2].set_ylabel('Time (seconds)')
+    axes[1, 2].grid(True, alpha=0.3)
+    
+    plt.suptitle(f'Optuna-Optimized Autoencoder Results - {timestamp}', fontsize=16)
     plt.tight_layout()
     
     # Save plot
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.makedirs('logs', exist_ok=True)
-    plot_path = f'logs/autoencoder_correct_{timestamp}.png'
+    plot_path = os.path.join(save_dir, f'optuna_results_{timestamp}.png')
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     plt.close()
     
-    print(f"\nPlot saved to: {plot_path}")
+    print(f"\nPlots saved to: {plot_path}")
+    
+    # Save raw data
+    data_path = os.path.join(save_dir, f'optuna_results_{timestamp}.npz')
+    np.savez(data_path,
+             train_losses=train_metrics['train_losses'],
+             epoch_times=train_metrics['epoch_times'],
+             errors=errors,
+             true_labels=true_labels,
+             best_threshold=best_results['threshold'],
+             best_accuracy=best_results['accuracy'],
+             best_recall=best_results['recall'],
+             best_precision=best_results['precision'],
+             best_f1=best_results['f1'],
+             roc_auc=best_results['roc_auc'])
+    
+    print(f"Data saved to: {data_path}")
+    
     return plot_path
 
-
-def save_report(training_metrics, eval_results, model):
-    """Save comprehensive report."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.makedirs('logs', exist_ok=True)
-    report_path = f'logs/report_correct_{timestamp}.txt'
-    
-    total_params = sum(p.numel() for p in model.parameters())
-    
-    with open(report_path, 'w', encoding='utf-8') as f:
-        f.write("="*70 + "\n")
-        f.write("CORRECT AUTOENCODER WITH REAL BOTTLENECK - ANOMALY DETECTION REPORT\n")
-        f.write("="*70 + "\n\n")
-        
-        f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Model: CorrectAutoencoder (bottleneck_dim={model.bottleneck_dim})\n")
-        f.write(f"Total parameters: {total_params:,}\n\n")
-        
-        f.write("COMPRESSION ANALYSIS:\n")
-        f.write(f"  Input pixels: 450×450×1 = 202,500\n")
-        f.write(f"  Encoder output: 128×28×28 = 100,352 features\n")
-        f.write(f"  Bottleneck: 100,352 → {model.bottleneck_dim} (compression ratio: {100352/model.bottleneck_dim:.1f}x)\n")
-        f.write(f"  Total compression: 202,500 → {model.bottleneck_dim} ({202500/model.bottleneck_dim:.1f}x)\n\n")
-        
-        f.write("TRAINING:\n")
-        f.write(f"  Epochs completed: {len(training_metrics['train_losses'])}\n")
-        f.write(f"  Final loss: {training_metrics['train_losses'][-1]:.6f}\n")
-        f.write(f"  Best loss: {training_metrics.get('best_loss', training_metrics['train_losses'][-1]):.6f}\n")
-        f.write(f"  Total time: {sum(training_metrics['epoch_times']):.2f}s\n")
-        f.write(f"  Average epoch time: {np.mean(training_metrics['epoch_times']):.2f}s\n\n")
-        
-        f.write("ERROR STATISTICS:\n")
-        stats = eval_results['error_stats']
-        f.write(f"  Healthy (n=300):\n")
-        f.write(f"    Mean: {stats['healthy_mean']:.6f}\n")
-        f.write(f"    Std:  {stats['healthy_std']:.6f}\n")
-        f.write(f"  Leukemia (n=300):\n")
-        f.write(f"    Mean: {stats['leukemia_mean']:.6f}\n")
-        f.write(f"    Std:  {stats['leukemia_std']:.6f}\n")
-        f.write(f"  Separation: {stats['separation']:.6f}\n")
-        f.write(f"  Separation ratio: {stats['separation_ratio']:.2f} std dev\n")
-        f.write(f"  Error ratio (Leukemia/Healthy): {stats['error_ratio']:.2f}x\n\n")
-        
-        f.write("PERFORMANCE METRICS:\n")
-        f.write(f"  ROC AUC: {eval_results['roc_auc']:.4f}\n")
-        f.write(f"  F1 Score: {eval_results['f1_score']:.4f}\n")
-        f.write(f"  Optimal threshold: {eval_results['threshold']:.6f}\n")
-        f.write(f"  Accuracy: {np.mean(eval_results['predictions'] == eval_results['labels']):.4f}\n\n")
-        
-        f.write("PERFORMANCE ASSESSMENT:\n")
-        roc_auc = eval_results['roc_auc']
-        error_ratio = stats['error_ratio']
-        
-        if roc_auc >= 0.8 and error_ratio >= 3.0:
-            f.write("  EXCELLENT: Perfect anomaly detector with strong separation\n")
-        elif roc_auc >= 0.75 and error_ratio >= 2.5:
-            f.write("  GOOD: Effective anomaly detector\n")
-        elif roc_auc >= 0.7 and error_ratio >= 2.0:
-            f.write("  MODERATE: Acceptable performance\n")
-        elif roc_auc >= 0.65 and error_ratio >= 1.5:
-            f.write("  LIMITED: Some discriminative power\n")
-        elif roc_auc >= 0.6:
-            f.write("  WEAK: Barely better than random\n")
-        else:
-            f.write("  POOR: Fails as anomaly detector\n")
-        
-        f.write(f"\nTARGETS vs ACTUAL:\n")
-        f.write(f"  Target ROC AUC: >0.75 | Actual: {roc_auc:.4f}\n")
-        f.write(f"  Target Error Ratio: 3-5x | Actual: {error_ratio:.2f}x\n")
-        f.write(f"  Target Separation Ratio: >1.5σ | Actual: {stats['separation_ratio']:.2f}σ\n")
-        f.write(f"  Target Training Loss: <0.010 | Actual: {training_metrics['train_losses'][-1]:.6f}\n\n")
-        
-        f.write("CLASSIFICATION REPORT:\n")
-        f.write(classification_report(eval_results['labels'], eval_results['predictions'], 
-                                      target_names=['Healthy', 'Leukemia']))
-    
-    print(f"Report saved to: {report_path}")
-    return report_path
-
+# ============ MAIN FUNCTION ============
 
 def main():
-    """Main function."""
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+    
     print("\n" + "="*70)
-    print("LEUKEMIA ANOMALY DETECTION - CORRECT AUTOENCODER (MODEL 7)")
+    print("OPTUNA-OPTIMIZED AUTOENCODER FOR LEUKEMIA DETECTION")
+    print("Based on Trial #14: ROC AUC = 0.7472")
+    print("Parameters: 194,881")
     print("="*70)
     
-    # Set seeds for reproducibility
-    torch.manual_seed(42)
-    np.random.seed(42)
+    # 1. Load data
+    print("\n1. Loading datasets...")
     
-    # Device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Device: {device}")
-    
-    # Load data
-    print("\n1. Loading data...")
+    # Try to load data using your functions
     try:
         datasets, _ = cargar_todos_datasets_con_labels()
     except:
@@ -596,113 +560,79 @@ def main():
             datasets = {'hem': hem_images, 'all': all_images}
             print("Using dummy data for testing")
     
-    # Prepare data
-    train_loader, test_loader = prepare_data_simple(datasets, batch_size=16)
+    print(f"Loaded {len([img for img_list in datasets.values() for img in img_list])} total images")
     
-    # Create model
-    print("\n2. Creating CORRECT autoencoder (Model 7)...")
-    model = CorrectAutoencoder(bottleneck_dim=256)
+    # 2. Prepare data (Optuna-style splits)
+    train_loader, test_loader, _ = prepare_optuna_data(datasets, batch_size=16)
+    
+    # 3. Create Optuna-optimized model
+    print("\n2. Creating Optuna-optimized autoencoder...")
+    model = OptunaOptimizedAutoencoder()
     total_params = sum(p.numel() for p in model.parameters())
     
-    print(f"Model created with {total_params:,} parameters")
-    print(f"\nARCHITECTURE HIGHLIGHTS:")
-    print(f"  Encoder: 1→16→32→64→128 channels with 4x max pooling")
-    print(f"  Bottleneck: REAL compression 100,352 features → 256 (400x!)")
-    print(f"  Decoder: 256 → 128→64→32→16→1 channels")
-    print(f"  Total compression: 202,500 pixels → 256 features (791x compression)")
-    print(f"\nKEY IMPROVEMENTS:")
-    print(f"  1. EXTRA POOLING: 56×56 → 28×28 for stronger spatial compression")
-    print(f"  2. REAL BOTTLENECK: Linear layers force abstract feature learning")
-    print(f"  3. 400x COMPRESSION: Forces information loss (critical for anomalies)")
-    print(f"  4. L1 REGULARIZATION: Encourages sparse latent representations")
+    print(f"\nModel Architecture (Optuna-optimized):")
+    print(f"  Base channels: 16 (32 * 0.5 multiplier)")
+    print(f"  BatchNorm: Enabled")
+    print(f"  Dropout: Enabled (rate: 0.25)")
+    print(f"  Total parameters: {total_params:,}")
+    print(f"  Parameter reduction from original: {(776833 - total_params)/776833*100:.1f}%")
     
-    # Train
-    print("\n3. Training correct autoencoder...")
-    print("Training parameters:")
-    print(f"  Epochs: 50 (with early stopping patience=15)")
-    print(f"  Learning rate: 0.0001 (lower for stable bottleneck learning)")
-    print(f"  Noise: 0.08 for first 30 epochs (denoising autoencoder)")
-    print(f"  Target loss: <0.010 (previous best: 0.015)")
-    
-    model, training_metrics = train_correct(model, train_loader, epochs=50, lr=0.0001, device=device)
-    
-    # Evaluate
-    print("\n4. Evaluating anomaly detection...")
-    eval_results = evaluate_model(model, test_loader, device)
-    
-    # Save results
-    print("\n5. Saving results...")
-    plot_path = plot_results(training_metrics, eval_results)
-    report_path = save_report(training_metrics, eval_results, model)
-    
-    # Save model
-    model_path = 'leukemia_autoencoder_correct.pth'
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'model_config': {'bottleneck_dim': model.bottleneck_dim},
-        'training_metrics': training_metrics,
-        'evaluation_results': eval_results
-    }, model_path)
-    print(f"Model saved to: {model_path}")
-    
-    # Save predictions and latent vectors
-    predictions_path = 'autoencoder_correct_predictions.npz'
-    save_dict = {
-        'errors': eval_results['errors'],
-        'labels': eval_results['labels'],
-        'predictions': eval_results['predictions'],
-        'threshold': eval_results['threshold'],
-        'roc_auc': eval_results['roc_auc'],
-        'error_stats': eval_results['error_stats']
-    }
-    if eval_results['latent_vectors'] is not None:
-        save_dict['latent_vectors'] = eval_results['latent_vectors']
-    
-    np.savez(predictions_path, **save_dict)
-    print(f"Predictions saved to: {predictions_path}")
-    
-    # Final summary
+    # 4. Train (only training, no validation)
     print("\n" + "="*70)
-    print("COMPLETED SUCCESSFULLY!")
+    print("3. TRAINING PHASE (NO VALIDATION DURING TRAINING)")
     print("="*70)
     
-    # Performance assessment
-    roc_auc = eval_results['roc_auc']
-    error_ratio = eval_results['error_stats']['error_ratio']
-    separation_ratio = eval_results['error_stats']['separation_ratio']
-    final_loss = training_metrics['train_losses'][-1]
+    model, train_metrics = train_optuna_autoencoder(
+        model=model,
+        train_loader=train_loader,
+        epochs=50,  # Increased from Optuna's 14 for better training
+        device=device
+    )
     
-    print(f"\nKEY RESULTS:")
-    print(f"  ROC AUC: {roc_auc:.4f} (Target: >0.75)")
-    print(f"  Error Ratio: {error_ratio:.2f}x (Target: 3-5x)")
-    print(f"  Separation Ratio: {separation_ratio:.2f}σ (Target: >1.5σ)")
-    print(f"  Final Training Loss: {final_loss:.6f} (Target: <0.010)")
+    # 5. Evaluate after training
+    print("\n" + "="*70)
+    print("4. POST-TRAINING EVALUATION")
+    print("="*70)
     
-    print(f"\nPERFORMANCE EVALUATION:")
-    if roc_auc >= 0.75 and error_ratio >= 2.5:
-        print("  SUCCESS: Model achieves target performance!")
-        print("  The bottleneck is working correctly with proper compression.")
-    elif roc_auc >= 0.7:
-        print("  MODERATE: Acceptable but needs slight improvement")
-        print("  Bottleneck compression is helping but could be optimized.")
-    elif roc_auc >= 0.65:
-        print("  LIMITED: Some improvement over previous models")
-        print("  Bottleneck helps but needs tuning.")
-    else:
-        print("  POOR: Worse than previous models")
-        print("  The bottleneck compression might be too aggressive.")
+    errors, true_labels = evaluate_optuna_autoencoder(model, test_loader, device)
     
-    print(f"\nCOMPARISON TO BEST PREVIOUS (Model 3):")
-    print(f"  Previous ROC AUC: 0.6964 | Current: {roc_auc:.4f}")
-    print(f"  Previous Parameters: 51M | Current: {total_params:,} ({total_params/51000000:.1%})")
-    print(f"  Improvement: {'YES' if roc_auc > 0.6964 else 'NO'}")
+    # 6. Analyze results with Optuna comparison
+    best_results, errors, true_labels = analyze_optuna_results(errors, true_labels, model)
     
-    print(f"\nFiles saved:")
-    print(f"  Model: {model_path}")
-    print(f"  Predictions: {predictions_path}")
-    print(f"  Plot: {plot_path}")
-    print(f"  Report: {report_path}")
-
+    # 7. Plot results
+    plot_path = plot_optuna_results(train_metrics, errors, true_labels, best_results)
+    
+    # 8. Save model
+    model_path = 'leukemia_autoencoder_optuna_optimized.pth'
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'train_metrics': train_metrics,
+        'best_threshold': best_results['threshold'],
+        'best_results': best_results,
+        'optuna_comparison': {
+            'optuna_roc_auc': 0.7472,
+            'current_roc_auc': best_results['roc_auc'],
+            'optuna_params': 194881,
+            'current_params': total_params,
+            'improvement': best_results['roc_auc'] - 0.7472
+        }
+    }, model_path)
+    
+    print(f"\n" + "="*70)
+    print("TRAINING COMPLETE")
+    print("="*70)
+    print(f"Model saved as: {model_path}")
+    print(f"Best threshold: {best_results['threshold_name']} = {best_results['threshold']:.6f}")
+    print(f"Best F1-score: {best_results['f1']:.4f}")
+    print(f"Recall (Leukemia detection): {best_results['recall']:.4f}")
+    print(f"ROC AUC: {best_results['roc_auc']:.4f}")
+    
+    print(f"\nFinal Comparison:")
+    print(f"  Optuna validation AUC: 0.7472")
+    print(f"  Current test AUC: {best_results['roc_auc']:.4f}")
+    if best_results['roc_auc'] > 0.7472:
+        print(f"  Improvement: +{best_results['roc_auc'] - 0.7472:.4f}")
+    print(f"  Parameter reduction: {(776833 - total_params)/776833*100:.1f}%")
 
 if __name__ == "__main__":
     main()
